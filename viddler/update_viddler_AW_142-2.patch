@@ -2,7 +2,7 @@ diff --git a/docroot/sites/default/modules/viddler/js/viddler-player.js b/docroo
 new file mode 100644
 index 0000000..4db8f69
 --- /dev/null
-+++ b/docroot/sites/default/modules/viddler/js/viddler-player.js
++++ b/js/viddler-player.js
 @@ -0,0 +1,25 @@
 +;(function ($, Drupal) {
 +

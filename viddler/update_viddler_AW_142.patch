@@ -1,7 +1,7 @@
 diff --git a/docroot/sites/default/modules/viddler/js/viddler.js b/docroot/sites/default/modules/viddler/js/viddler.js
 index 1eb1b58..374e94e 100644
---- a/docroot/sites/default/modules/viddler/js/viddler.js
-+++ b/docroot/sites/default/modules/viddler/js/viddler.js
+--- a/js/viddler.js
++++ b/js/viddler.js
 @@ -3,13 +3,7 @@
      /**
       * #892 - Track Viddler Video Plays.
