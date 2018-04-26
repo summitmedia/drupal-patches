@@ -1,4 +1,4 @@
-diff --git a/docroot/sites/default/modules/viddler/js/viddler-player.js b/docroot/sites/default/modules/viddler/js/viddler-player.js
+diff --git a/js/viddler-player.js b/viddler-player.js
 new file mode 100644
 index 0000000..4db8f69
 --- /dev/null
@@ -29,6 +29,4 @@ index 0000000..4db8f69
 +    }
 +  };
 +})(jQuery, Drupal);
-diff --git a/docroot/sites/default/modules/viddler/update_viddler_AW_142-2.patch b/docroot/sites/default/modules/viddler/update_viddler_AW_142-2.patch
-new file mode 100644
-index 0000000..e69de29
+

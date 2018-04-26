@@ -1,4 +1,4 @@
-diff --git a/docroot/sites/default/modules/viddler/js/viddler.js b/docroot/sites/default/modules/viddler/js/viddler.js
+diff --git a/js/viddler.js b/js/viddler.js
 index 1eb1b58..374e94e 100644
 --- a/js/viddler.js
 +++ b/js/viddler.js
@@ -64,10 +64,10 @@ index 1eb1b58..374e94e 100644
 -
    });
  })(jQuery);
-diff --git a/docroot/sites/default/modules/viddler/library/phpviddler.php b/docroot/sites/default/modules/viddler/library/phpviddler.php
+diff --git a/library/phpviddler.php b/library/phpviddler.php
 index 0dc9464..a014df9 100644
---- a/docroot/sites/default/modules/viddler/library/phpviddler.php
-+++ b/docroot/sites/default/modules/viddler/library/phpviddler.php
+--- a/library/phpviddler.php
++++ b/library/phpviddler.php
 @@ -1,4 +1,5 @@
  <?php
 +
@@ -269,10 +269,10 @@ index 0dc9464..a014df9 100644
  }
 -
 -?>
-diff --git a/docroot/sites/default/modules/viddler/modules/viddler_sitemap/viddler_sitemap.info b/docroot/sites/default/modules/viddler/modules/viddler_sitemap/viddler_sitemap.info
+diff --git a/modules/viddler_sitemap/viddler_sitemap.info b/modules/viddler_sitemap/viddler_sitemap.info
 index dff625f..2763f30 100644
---- a/docroot/sites/default/modules/viddler/modules/viddler_sitemap/viddler_sitemap.info
-+++ b/docroot/sites/default/modules/viddler/modules/viddler_sitemap/viddler_sitemap.info
+--- a/modules/viddler_sitemap/viddler_sitemap.info
++++ b/modules/viddler_sitemap/viddler_sitemap.info
 @@ -3,4 +3,4 @@ description = Generates a Video Sitemap
  core = 7.x
  package = Viddler
@@ -280,10 +280,10 @@ index dff625f..2763f30 100644
 -files[] = ../../library/phpviddler.php
 \ No newline at end of file
 +files[] = ../../library/phpviddler.php
-diff --git a/docroot/sites/default/modules/viddler/modules/viddler_sitemap/viddler_sitemap.install b/docroot/sites/default/modules/viddler/modules/viddler_sitemap/viddler_sitemap.install
+diff --git a/modules/viddler_sitemap/viddler_sitemap.install b/modules/viddler_sitemap/viddler_sitemap.install
 index d3a0a63..404dec2 100644
---- a/docroot/sites/default/modules/viddler/modules/viddler_sitemap/viddler_sitemap.install
-+++ b/docroot/sites/default/modules/viddler/modules/viddler_sitemap/viddler_sitemap.install
+--- a/modules/viddler_sitemap/viddler_sitemap.install
++++ b/modules/viddler_sitemap/viddler_sitemap.install
 @@ -6,5 +6,6 @@ function viddler_sitemap_schema() {
    // Creating own cache table because I don't want the cache to be cleared
    // everytime you git flush cache, etc...
@@ -292,10 +292,10 @@ index d3a0a63..404dec2 100644
    return $schema;
  }
 \ No newline at end of file
-diff --git a/docroot/sites/default/modules/viddler/modules/viddler_sitemap/viddler_sitemap.module b/docroot/sites/default/modules/viddler/modules/viddler_sitemap/viddler_sitemap.module
+diff --git a/modules/viddler_sitemap/viddler_sitemap.module b/modules/viddler_sitemap/viddler_sitemap.module
 index 7a2b2c4..492aca2 100644
---- a/docroot/sites/default/modules/viddler/modules/viddler_sitemap/viddler_sitemap.module
-+++ b/docroot/sites/default/modules/viddler/modules/viddler_sitemap/viddler_sitemap.module
+--- a/modules/viddler_sitemap/viddler_sitemap.module
++++ b/modules/viddler_sitemap/viddler_sitemap.module
 @@ -1,9 +1,7 @@
  <?php
  /**
@@ -590,10 +590,10 @@ index 7a2b2c4..492aca2 100644
 -}
 \ No newline at end of file
 +}
-diff --git a/docroot/sites/default/modules/viddler/viddler.field.inc b/docroot/sites/default/modules/viddler/viddler.field.inc
+diff --git a/viddler.field.inc b/viddler.field.inc
 index 02d4296..dcfbf26 100644
---- a/docroot/sites/default/modules/viddler/viddler.field.inc
-+++ b/docroot/sites/default/modules/viddler/viddler.field.inc
+--- a/viddler.field.inc
++++ b/viddler.field.inc
 @@ -6,20 +6,20 @@ module_load_include('php', 'viddler', 'library/phpviddler');
   * Implement hook_field_info().
   */
@@ -1661,10 +1661,10 @@ index 02d4296..dcfbf26 100644
 -  watchdog('viddler', $watchdog_err, $variables = array(), WATCHDOG_ERROR, l('node/'.$id,'node/'.$id));
 +  watchdog('viddler', $watchdog_err, [], WATCHDOG_ERROR, l('node/' . $id, 'node/' . $id));
  }
-diff --git a/docroot/sites/default/modules/viddler/viddler.info b/docroot/sites/default/modules/viddler/viddler.info
+diff --git a/viddler.info b/viddler.info
 index d982685..149a3a7 100644
---- a/docroot/sites/default/modules/viddler/viddler.info
-+++ b/docroot/sites/default/modules/viddler/viddler.info
+--- a/viddler.info
++++ b/viddler.info
 @@ -3,4 +3,4 @@ description = "Viddler field"
  core = 7.x
  package = Viddler
@@ -1672,10 +1672,10 @@ index d982685..149a3a7 100644
 -files[] = library/phpviddler.php
 \ No newline at end of file
 +files[] = library/phpviddler.php
-diff --git a/docroot/sites/default/modules/viddler/viddler.install b/docroot/sites/default/modules/viddler/viddler.install
+diff --git a/viddler.install b/viddler.install
 index bb60c19..6a60698 100644
---- a/docroot/sites/default/modules/viddler/viddler.install
-+++ b/docroot/sites/default/modules/viddler/viddler.install
+--- a/viddler.install
++++ b/viddler.install
 @@ -1,64 +1,66 @@
  <?php
 +
@@ -1773,10 +1773,10 @@ index bb60c19..6a60698 100644
 -}
 \ No newline at end of file
 +}
-diff --git a/docroot/sites/default/modules/viddler/viddler.module b/docroot/sites/default/modules/viddler/viddler.module
+diff --git a/viddler.module b/viddler.module
 index a250b38..9c0ca4f 100644
---- a/docroot/sites/default/modules/viddler/viddler.module
-+++ b/docroot/sites/default/modules/viddler/viddler.module
+--- a/viddler.module
++++ b/viddler.module
 @@ -1,4 +1,5 @@
  <?php
 +
