@@ -1,0 +1,1928 @@
+diff --git a/docroot/sites/default/modules/viddler/js/viddler.js b/docroot/sites/default/modules/viddler/js/viddler.js
+index 1eb1b58..374e94e 100644
+--- a/docroot/sites/default/modules/viddler/js/viddler.js
++++ b/docroot/sites/default/modules/viddler/js/viddler.js
+@@ -3,13 +3,7 @@
+     /**
+      * #892 - Track Viddler Video Plays.
+      */
+-    $("iframe[id^='viddler-']").each(function (i, el) {
+-      // Check if viddler parameter has enablejsapi and if it doesn't add it. (
+-      // This tells Viddler that you are allowing this video to use the api)
+-      if (el.src.indexOf('enablejsapi=t') == -1) {
+-         el.src = el.src + '&enablejsapi=t';
+-      }
+-
++    $("div[id^='viddler-player-']").each(function (i, el) {
+       // Get the Viddler Id from the iframe parameter. (viddler-xxxxxxx)
+       var elementId = el.id.split('-');
+       var viddlerId = elementId[elementId.length - 1];
+@@ -26,36 +20,23 @@
+      *   Viddler ID.
+      */
+     function checkForViddlerEvent(id, viddlerId) {
+-      var player = window.Viddler(id);
++      var player = Drupal.settings.viddler.exist['viddler-' + viddlerId];
+       var sentGoogleEvent = false;
+ 
+       /**
+-       * When a video state changes this event fires.
+-       * Possible states are:
+-       *   - not started (-1)
+-       *   - ended (0)
+-       *   - playing (1)
+-       *   - paused (2)
+-       *   - buffering (3)
+-       *   - video cued (5)
+-       *
+-       * @var integer state
+-       *   The state.
++       * Handle event if player in playing video.
+        */
+-      player.onStateChange(function(state){
+-        if (state == 1) {
+-          if (sentGoogleEvent === false) {
+-            // Add Google Event that Video was played.
+-            if (typeof ga == 'function') {
+-              ga('send', 'event', 'Viddler Video Plays', viddlerId, window.location.pathname);
+-            }
+-
+-            // Set to true so it won't fire twice for a video.
+-            sentGoogleEvent = true;
++      player.manager.events.on('mediaElement:play', function () {
++        if (sentGoogleEvent === false) {
++          // Add Google Event that Video was played.
++          if (typeof ga === 'function') {
++            ga('send', 'event', 'Viddler Video Plays', viddlerId, window.location.pathname);
+           }
++
++          // Set to true so it won't fire twice for a video.
++          sentGoogleEvent = true;
+         }
+       });
+     }
+-
+   });
+ })(jQuery);
+diff --git a/docroot/sites/default/modules/viddler/library/phpviddler.php b/docroot/sites/default/modules/viddler/library/phpviddler.php
+index 0dc9464..a014df9 100644
+--- a/docroot/sites/default/modules/viddler/library/phpviddler.php
++++ b/docroot/sites/default/modules/viddler/library/phpviddler.php
+@@ -1,4 +1,5 @@
+ <?php
++
+ /* Viddler PHP Wrapper for Viddler's API
+   Version 2.2
+   Released: December 2010.
+@@ -7,49 +8,50 @@
+ 
+ /* Viddler Class
+   use $var = new Viddler_V2(API KEY); */
++
+ class Viddler_V2 {
++
+   public $api_key = NULL;
+ 
+   // Construct! Like the Matrix.
+   public function __construct($api_key) {
+-    if (!$api_key) {
+-      return FALSE;
+-    } else {
+-      $this->api_key = $api_key;
+-    }
++    $this->api_key = $api_key;
+   }
+ 
+   /**
+-  Can be called like such:
+-  $__api = new Viddler_API("YOUR KEY");
+-  $array = $__api->viddler_users_getProfile(array("user"=>"phpfunk"));
+-  **/
+-  public function __call($method, $args) { return self::call($method, $args, "object"); }
+-
+-  protected function call($method, $args, $call)
+-  {
+-    /**
+-    Format the Method
+-    Accepted Formats:
++   * Can be called like such:
++   * $__api = new Viddler_API("YOUR KEY");
++   * $array = $__api->viddler_users_getProfile(['user' => 'username']);
++   **/
++  public function __call($method, $args) {
++    return self::call($method, $args, "object");
++  }
+ 
+-    $viddler->viddler_users_auth();
+-    **/
++  protected function call($method, $args, $call) {
++    /**
++     * Format the Method
++     * Accepted Formats:
++     *
++     * $viddler->viddler_users_auth();
++     */
+     $method = str_replace("_", ".", $method);
+ 
+     //If the method exists here, call it
+-    if (method_exists($this, $method)) { return $this->$method($args[0]); }
++    if (method_exists($this, $method)) {
++      return $this->$method($args[0]);
++    }
+ 
+     // Used to construct the querystring.
+-    $query = array();
++    $query = [];
+ 
+     // Methods that require HTTPS
+-    $secure_methods = array(
++    $secure_methods = [
+       'viddler.users.auth',
+-      'viddler.users.register'
+-    );
++      'viddler.users.register',
++    ];
+ 
+     // Methods that require POST
+-    $post_methods = array(
++    $post_methods = [
+       'viddler.encoding.cancel',
+       'viddler.encoding.encode',
+       'viddler.encoding.setOptions',
+@@ -84,14 +86,14 @@ class Viddler_V2 {
+       'viddler.videos.setThumbnail',
+       'viddler.videos.setDetails',
+       'viddler.videos.enableAds',
+-      'viddler.videos.disableAds'
+-    );
++      'viddler.videos.disableAds',
++    ];
+ 
+-    // Methods that require Binary transfer
+-    $binary_methods = array(
++    // Methods that require Binary transfer.
++    $binary_methods = [
+       'viddler.videos.setThumbnail',
+-      'viddler.videos.upload'
+-    );
++      'viddler.videos.upload',
++    ];
+ 
+     $binary = (in_array($method, $binary_methods)) ? TRUE : FALSE;
+     $post = (in_array($method, $post_methods)) ? TRUE : FALSE;
+@@ -101,15 +103,17 @@ class Viddler_V2 {
+ 
+     // Build API endpoint URL
+     // This is generally used to switch the end-point for uploads. See /examples/uploadExample.php in PHPViddler 2
+-    if(isset($args[1])) {
++    if (isset($args[1])) {
+       $url = $args[1];
+-    } else {
++    }
++    else {
+       $url = $protocol . "://api.viddler.com/api/v2/" . $method . ".php";
+     }
+ 
+     if ($post === TRUE) { // Is a post method
+-        array_push($query, "key=" . $this->api_key); // Adds API key to the POST arguments array
+-    } else {
++      array_push($query, "key=" . $this->api_key); // Adds API key to the POST arguments array
++    }
++    else {
+       $url .= "?key=" . $this->api_key;
+     }
+ 
+@@ -120,7 +124,6 @@ class Viddler_V2 {
+           array_push($query, "$k=$v");
+         }
+       }
+-      $query_arr = $query;
+       $query = implode("&", $query);
+       if ($post === FALSE) {
+         $url .= (!empty($query)) ? "&" . $query : "";
+@@ -128,27 +131,31 @@ class Viddler_V2 {
+     }
+     else {
+       $query = NULL;
+-      $args[0] = array();
++      $args[0] = [];
+     }
+ 
+-    // Custruct the cURL call
++    // Construct the cURL call.
+     $ch = curl_init();
+-    curl_setopt ($ch, CURLOPT_URL, $url);
+-    curl_setopt ($ch, CURLOPT_RETURNTRANSFER, 1);
+-    curl_setopt ($ch, CURLOPT_HEADER, 0);
+-    curl_setopt ($ch, CURLOPT_TIMEOUT, 0);
+-    curl_setopt ($ch, CURLOPT_SSL_VERIFYPEER, FALSE);
++    curl_setopt($ch, CURLOPT_URL, $url);
++    curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
++    curl_setopt($ch, CURLOPT_HEADER, 0);
++    curl_setopt($ch, CURLOPT_TIMEOUT, 0);
++    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, FALSE);
+ 
+-    // Figure POST vs. GET
++    // Figure out POST or GET.
+     if ($post == TRUE) {
+       curl_setopt($ch, CURLOPT_POST, TRUE);
+       if ($binary === TRUE) {
+-        $binary_args = array();
+-        foreach($args[0] as $k=>$v) {
+-          if($k != 'file') $binary_args[$k] = $v;
++        $binary_args = [];
++        foreach ($args[0] as $k => $v) {
++          if ($k != 'file') {
++            $binary_args[$k] = $v;
++          }
+         }
+ 
+-        if(!isset($binary_args['key'])) $binary_args['key'] = $this->api_key;
++        if (!isset($binary_args['key'])) {
++          $binary_args['key'] = $this->api_key;
++        }
+         $binary_args['file'] = $args[0]['file'];
+ 
+         curl_setopt($ch, CURLOPT_POSTFIELDS, $binary_args);
+@@ -161,21 +168,18 @@ class Viddler_V2 {
+       curl_setopt($ch, CURLOPT_HTTPGET, TRUE);
+     }
+ 
+-    //G et the response
++    // Get the response.
+     $response = curl_exec($ch);
+ 
+     if (!$response) {
+-      $response = $error = curl_error($ch);
+-
+-      return $response;
++      return curl_error($ch);
+     }
+     else {
+       $response = unserialize($response);
+     }
+ 
+     curl_close($ch);
++
+     return $response;
+   }
+ }
+-
+-?>
+diff --git a/docroot/sites/default/modules/viddler/modules/viddler_sitemap/viddler_sitemap.info b/docroot/sites/default/modules/viddler/modules/viddler_sitemap/viddler_sitemap.info
+index dff625f..2763f30 100644
+--- a/docroot/sites/default/modules/viddler/modules/viddler_sitemap/viddler_sitemap.info
++++ b/docroot/sites/default/modules/viddler/modules/viddler_sitemap/viddler_sitemap.info
+@@ -3,4 +3,4 @@ description = Generates a Video Sitemap
+ core = 7.x
+ package = Viddler
+ files[] = library/video-sitemap.php
+-files[] = ../../library/phpviddler.php
+\ No newline at end of file
++files[] = ../../library/phpviddler.php
+diff --git a/docroot/sites/default/modules/viddler/modules/viddler_sitemap/viddler_sitemap.install b/docroot/sites/default/modules/viddler/modules/viddler_sitemap/viddler_sitemap.install
+index d3a0a63..404dec2 100644
+--- a/docroot/sites/default/modules/viddler/modules/viddler_sitemap/viddler_sitemap.install
++++ b/docroot/sites/default/modules/viddler/modules/viddler_sitemap/viddler_sitemap.install
+@@ -6,5 +6,6 @@ function viddler_sitemap_schema() {
+   // Creating own cache table because I don't want the cache to be cleared
+   // everytime you git flush cache, etc...
+   $schema['cache_viddler_sitemap'] = drupal_get_schema_unprocessed('system', 'cache');
++
+   return $schema;
+ }
+\ No newline at end of file
+diff --git a/docroot/sites/default/modules/viddler/modules/viddler_sitemap/viddler_sitemap.module b/docroot/sites/default/modules/viddler/modules/viddler_sitemap/viddler_sitemap.module
+index 7a2b2c4..492aca2 100644
+--- a/docroot/sites/default/modules/viddler/modules/viddler_sitemap/viddler_sitemap.module
++++ b/docroot/sites/default/modules/viddler/modules/viddler_sitemap/viddler_sitemap.module
+@@ -1,9 +1,7 @@
+ <?php
+ /**
+- * @author Albert Jankowski <ajankowski@summitmediagroup.com>
+- *
+  * @file viddler_sitemap.module
+- *  creates a site map of all Viddler videos
++ * Creates a site map of all Viddler videos
+  */
+ 
+ // 2 Weeks 
+@@ -13,33 +11,33 @@ define('VIDDLER_SITEMAP_CACHE_TIME', 1209600);
+  * Implements hook_menu().
+  */
+ function viddler_sitemap_menu() {
+-  $items['videos.xml'] = array(
++  $items['videos.xml'] = [
+     'page callback' => '_viddler_sitemap_videos',
+-    'access arguments' => array('access content'),
++    'access arguments' => ['access content'],
+     'type' => MENU_CALLBACK,
+-  );
+-  //Force Cache to refresh
+-  $items['admin/config/media/viddler/sitemap'] = array(
++  ];
++
++  // Force Cache to refresh.
++  $items['admin/config/media/viddler/sitemap'] = [
+     'title' => 'Refresh Viddler Sitemap',
+     'description' => 'Manually force the sitemap to reset its cache version.',
+     'page callback' => 'viddler_sitemap_refresh',
+-    'access arguments' => array('administer site configuration'),
++    'access arguments' => ['administer site configuration'],
+     'access callback' => 'user_access',
+     'type' => MENU_LOCAL_ACTION,
+     'weight' => 0,
+-  );
+-  
++  ];
++
+   return $items;
+ }
+ 
+ /**
+  * Generate Videos Sitemap
+  */
+-function _viddler_sitemap_videos() {  
+-  global $language_content;
++function _viddler_sitemap_videos() {
+   $sitemap = &drupal_static(__FUNCTION__);
+   if (!isset($sitemap)) {
+-    if ($cache = cache_get('viddler_sitemap',$bin = 'cache_viddler_sitemap')) {
++    if ($cache = cache_get('viddler_sitemap', 'cache_viddler_sitemap')) {
+       $sitemap = $cache->data;
+     }
+     else {
+@@ -48,12 +46,14 @@ function _viddler_sitemap_videos() {
+   }
+ 
+   drupal_add_http_header('Content-Type', 'text/xml; charset=utf-8');
++
+   print $sitemap;
+ }
+ 
+ /**
+- * Uses the Viddler API to get all the videos per user.  The easier way would be to get info one video at a time
+- * but Viddler limits the amount of calls.  This is the way they recommended.
++ * Uses the Viddler API to get all the videos per user.  The easier way would
++ * be to get info one video at a time but Viddler limits the amount of calls.
++ * This is the way they recommended.
+  *
+  * @param $api_key
+  *  the api key associated with the Viddler account
+@@ -64,78 +64,78 @@ function _viddler_sitemap_videos() {
+  * @param $per_page
+  *  the amount of videos that you want Viddler to give to you on the api call
+  * @param $max
+- *  the maximum amount of pages of videos. (50,000 is the maximum you can display on a page).
+- *  if we get a lot more videos than you may want to increase this to more.  Max would be 500
++ *  the maximum amount of pages of videos. (50,000 is the maximum you can
++ *   display on a page). if we get a lot more videos than you may want to
++ *   increase this to more.  Max would be 500
++ *
++ * @return array
+  */
+ function viddler_sitemap_get_videos_per_user($api_key, $username, $password, $per_page = 100, $max = 100) {
+   $current_page = 1;
+-  
++
+   $viddler_connect = new Viddler_V2($api_key);
+-  $session_id = viddler_get_sesssion_id($viddler_connect, $username, $password);
+-  
+-  $video_list = array();
+-  $videos_per_account = array();
+-  
+-  for($current_page; $current_page <= $max; $current_page++) {
++  $session_id = viddler_get_session_id($viddler_connect, $username, $password);
++
++  $videos_per_account = [];
++
++  for ($current_page; $current_page <= $max; $current_page++) {
+     //Get all the videos from one account
+-    $videos = $viddler_connect->viddler_videos_getByUser(array(
+-      'sessionid'   =>  $session_id,
+-      'page'        =>  $current_page,
+-      'per_page'    =>  $per_page,
+-      'visibility'  =>  'public,embed',
+-    ));
+-    
+-    if(isset($videos['list_result']['video_list'])) {
+-      foreach($videos['list_result']['video_list'] as $video_info) {
+-        $videos_per_account[$video_info['id']] = array(
++    $videos = $viddler_connect->viddler_videos_getByUser([
++      'sessionid' => $session_id,
++      'page' => $current_page,
++      'per_page' => $per_page,
++      'visibility' => 'public,embed',
++    ]);
++
++    if (isset($videos['list_result']['video_list'])) {
++      foreach ($videos['list_result']['video_list'] as $video_info) {
++        $videos_per_account[$video_info['id']] = [
+           'id' => $video_info['id'],
+           'permissions' => $video_info['permissions'],
+           'files' => $video_info['files'],
+           'length' => $video_info['length'],
+           'view_count' => $video_info['view_count'],
+-        ); 
++        ];
+       }
+-    }  
++    }
+   }
+-  
++
+   return $videos_per_account;
+ }
+ 
+ /**
+  * Sets the sitemap into cache
+  */
+-function viddler_sitemap_update_sitmap_cache() {  
+-  global $language_content;
+-  
++function viddler_sitemap_update_sitmap_cache() {
+   // Get videos from main account
+   $videos_from_viddler = viddler_sitemap_get_videos_per_user(variable_get('viddler_apikey', ''), variable_get('viddler_user', ''), variable_get('viddler_password', ''));
+ 
+   // Get videos from second account
+-  if(variable_get('viddler_password2', FALSE)) {
++  if (variable_get('viddler_password2', FALSE)) {
+     $videos_from_viddler_second = viddler_sitemap_get_videos_per_user(variable_get('viddler_apikey', ''), variable_get('viddler_user', ''), variable_get('viddler_password', ''));
+-    if($videos_from_viddler_second) {
++    if ($videos_from_viddler_second) {
+       $videos_from_viddler = array_merge($videos_from_viddler, $videos_from_viddler_second);
+     }
+   }
+ 
+   // Get all nids and viddler ids from all nodes that have a video
+   $query = db_select('field_data_field_viddler_id', 'v')
+-    ->fields('v', array('field_viddler_id_value', 'entity_id'))
++    ->fields('v', ['field_viddler_id_value', 'entity_id'])
+     ->orderBy('entity_id', 'DESC');
+   $video_nodes = $query->execute()->fetchAll();
+ 
+   // Get all xml rows to put into sitemap
+   $xml = '';
+-  foreach($video_nodes as $video_node) {
+-    if(isset($videos_from_viddler[$video_node->field_viddler_id_value])) {
++  foreach ($video_nodes as $video_node) {
++    if (isset($videos_from_viddler[$video_node->field_viddler_id_value])) {
+       $xml .= viddler_sitemap_get_sitemap_row($videos_from_viddler[$video_node->field_viddler_id_value], node_load($video_node->entity_id));
+     }
+   }
+-  
++
+   // Create sitemap
+   $sitemap = viddler_create_sitemap($xml);
+   cache_set('viddler_sitemap', $sitemap, 'cache_viddler_sitemap', time() + VIDDLER_SITEMAP_CACHE_TIME);
+-  
++
+   return $sitemap;
+ }
+ 
+@@ -144,10 +144,10 @@ function viddler_sitemap_update_sitmap_cache() {
+  */
+ function viddler_sitemap_cron() {
+   // Run once a day at 1:00am
+-  if(date('G') == 1) {
++  if (date('G') == 1) {
+     viddler_sitemap_update_sitmap_cache();
+-    watchdog('viddler_sitemap', 'Viddler Sitemap Has been refreshed on %time', array('%time' => date("F j, Y, g:i a")));
+-  }  
++    watchdog('viddler_sitemap', 'Viddler Sitemap Has been refreshed on %time', ['%time' => date("F j, Y, g:i a")]);
++  }
+ }
+ 
+ /**
+@@ -155,7 +155,7 @@ function viddler_sitemap_cron() {
+  */
+ function viddler_sitemap_refresh() {
+   viddler_sitemap_update_sitmap_cache();
+-  watchdog('viddler_sitemap', 'Viddler Sitemap Has been refreshed on %time', array('%time' => date("F j, Y, g:i a")));
++  watchdog('viddler_sitemap', 'Viddler Sitemap Has been refreshed on %time', ['%time' => date("F j, Y, g:i a")]);
+   drupal_goto('videos.xml');
+ }
+ 
+@@ -171,29 +171,17 @@ function viddler_sitemap_refresh() {
+  *  all the rows
+  */
+ function viddler_sitemap_get_sitemap_row($video, $node) {
+-  global $base_url;
+-
+   $xml = '';
+   $embed = (isset($video['permissions']['embed']['level']) && $video['permissions']['embed']['level'] != 'private') ? 'yes' : 'no';
+-  $download = (isset($video['permissions']['download']['level']) && $video['permissions']['download']['level'] != 'private') ? true : false;
+- 
++
+   $xml .= '<url>';
+   $xml .= '<loc>' . viddler_getPathAlias($node->nid) . '</loc>';
+   $xml .= '<video:video>';
+   $xml .= '<video:thumbnail_loc>http://www.viddler.com/thumbnail/' . $video['id'] . '</video:thumbnail_loc>';
+   $xml .= '<video:title>' . htmlspecialchars($node->title, ENT_QUOTES, 'UTF-8') . '</video:title>';
+-  if(isset($node->field_deckhead['und'][0]['value'])) {
+-    $xml .= '<video:description>' . htmlspecialchars(strip_tags($node->field_deckhead['und'][0]['value']), ENT_QUOTES, 'UTF-8') . '</video:description>';
++  if (isset($node->field_deckhead[LANGUAGE_NONE][0]['value'])) {
++    $xml .= '<video:description>' . htmlspecialchars(strip_tags($node->field_deckhead[LANGUAGE_NONE][0]['value']), ENT_QUOTES, 'UTF-8') . '</video:description>';
+   }
+-  //If downloads for this content are not private, allow this param
+-  
+-  /*  // commenting out. Don't want any of our videos to be downloaded
+-  if ($download === true) {
+-    if(isset($video['files'][1]['url']) && $video['files'][1]['url']) {
+-      $xml .= '<video:content_loc>' . $video['files'][1]['url'] . '</video:content_loc>';
+-    }
+-  }
+-  */
+ 
+   $xml .= '<video:player_loc allow_embed="' . $embed . '">http://www.viddler.com/embed/' . $video['id'] . '</video:player_loc>';
+   $xml .= '<video:duration>' . $video['length'] . '</video:duration>';
+@@ -203,7 +191,7 @@ function viddler_sitemap_get_sitemap_row($video, $node) {
+   $xml .= '<video:live>no</video:live>';
+   $xml .= '</video:video>';
+   $xml .= '</url>';
+-  
++
+   return $xml;
+ }
+ 
+@@ -212,31 +200,33 @@ function viddler_sitemap_get_sitemap_row($video, $node) {
+  *
+  * @param $xml_rows
+  *  all the rows
++ *
++ * @return string
+  */
+ function viddler_create_sitemap($xml_rows) {
+   $str = '<?xml version="1.0" encoding="UTF-8"?>';
+   $str .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:video="http://www.google.com/schemas/sitemap-video/1.1">';
+   $str .= $xml_rows;
+   $str .= '</urlset>';
+-  
++
+   return $str;
+ }
+ 
+ /**
+  * Get full path of node
+- * 
++ *
+  * @param $nid
+  *  the node id
+  *
+- * @return
+- *  the full path alias
++ * @return string The full path alias
+  */
+ function viddler_getPathAlias($nid) {
+   global $base_url;
+-  
+-  //check for an alias using drupal_lookup_path()
+-  if((drupal_lookup_path('alias', 'node/'.$nid)!==false)) {
+-    $alias = drupal_lookup_path('alias', 'node/'.$nid); 
+-    return $base_url.'/'.$alias;
++
++  // Check for an alias using drupal_lookup_path().
++  if ((drupal_lookup_path('alias', 'node/' . $nid) !== FALSE)) {
++    $alias = drupal_lookup_path('alias', 'node/' . $nid);
++
++    return $base_url . '/' . $alias;
+   }
+-}
+\ No newline at end of file
++}
+diff --git a/docroot/sites/default/modules/viddler/viddler.field.inc b/docroot/sites/default/modules/viddler/viddler.field.inc
+index 02d4296..dcfbf26 100644
+--- a/docroot/sites/default/modules/viddler/viddler.field.inc
++++ b/docroot/sites/default/modules/viddler/viddler.field.inc
+@@ -6,20 +6,20 @@ module_load_include('php', 'viddler', 'library/phpviddler');
+  * Implement hook_field_info().
+  */
+ function viddler_field_info() {
+-  return array(
+-    'viddler_field' => array(
+-	    'label' => t('Viddler'),
+-  	  'description' => t('Stores the Viddler ID.'),
+-  	  'default_widget' => 'viddler_widget',
+-  	  'default_formatter' => 'viddler_default',
+-  	  'instance_settings' => array(
+-        'dimension' => array(),
+-				'input_type' => array(),
+-				'file_extensions' => 'mp4 ogg avi mov wmv flv ogv webm m4v',
+-				'file_directory' => 'videos/viddler',
+-      ),
+-	  ),
+-  );
++  return [
++    'viddler_field' => [
++      'label' => t('Viddler'),
++      'description' => t('Stores the Viddler ID.'),
++      'default_widget' => 'viddler_widget',
++      'default_formatter' => 'viddler_default',
++      'instance_settings' => [
++        'dimension' => [],
++        'input_type' => [],
++        'file_extensions' => 'mp4 ogg avi mov wmv flv ogv webm m4v',
++        'file_directory' => 'videos/viddler',
++      ],
++    ],
++  ];
+ }
+ 
+ /**
+@@ -35,52 +35,55 @@ function viddler_field_is_empty($item, $field) {
+ function viddler_field_instance_settings_form($field, $instance) {
+   $settings = $instance['settings'];
+ 
+-	$form['dimension']['full'] = array(
+-		'#type' => 'fieldset',
+-		'#title' => t('Video Display Settings'),
+-		'#description' => t('These settings control how this video is displayed in its full size, which defaults to !widthx!height.', array('!width' => VIDDLER_DEFAULT_VIDEO_WIDTH, '!height' => VIDDLER_DEFAULT_VIDEO_HEIGHT)),
+-	);
++  $form['dimension']['full'] = [
++    '#type' => 'fieldset',
++    '#title' => t('Video Display Settings'),
++    '#description' => t('These settings control how this video is displayed in its full size, which defaults to !widthx!height.', [
++      '!width' => VIDDLER_DEFAULT_VIDEO_WIDTH,
++      '!height' => VIDDLER_DEFAULT_VIDEO_HEIGHT,
++    ]),
++  ];
+ 
+-  $form['dimension']['full']['width'] = array(
++  $form['dimension']['full']['width'] = [
+     '#type' => 'textfield',
+     '#title' => t('Width'),
+     '#default_value' => @$settings['dimension']['full']['width'] ? $settings['dimension']['full']['width'] : VIDDLER_DEFAULT_VIDEO_WIDTH,
+-    '#description' => t('The width of the video. It defaults to !width.', array('!width' => VIDDLER_DEFAULT_VIDEO_WIDTH)),
+-  );
++    '#description' => t('The width of the video. It defaults to !width.', ['!width' => VIDDLER_DEFAULT_VIDEO_WIDTH]),
++  ];
+ 
+-  $form['dimension']['full']['height'] = array(
++  $form['dimension']['full']['height'] = [
+     '#type' => 'textfield',
+     '#title' => t('Height'),
+     '#default_value' => @$settings['dimension']['full']['height'] ? $settings['dimension']['full']['height'] : VIDDLER_DEFAULT_VIDEO_HEIGHT,
+     '#description' => t('The height of the video. Leave blank to have Viddler set automatically.'),
+-  );
++  ];
+ 
+-  $form['viddler_info'] = array(
+-		'#type' => 'fieldset',
+-		'#title' => t('Video Description Text'),
+-		'#description' => t('The text that will be below each field.'),
+-	);
++  $form['viddler_info'] = [
++    '#type' => 'fieldset',
++    '#title' => t('Video Description Text'),
++    '#description' => t('The text that will be below each field.'),
++  ];
+ 
+-	$form['viddler_info']['id_message'] = array(
++  $form['viddler_info']['id_message'] = [
+     '#type' => 'textarea',
+     '#title' => t('Viddler Id Message'),
+-    '#default_value' => @$settings['viddler_info']['id_message'] ? $settings['viddler_info']['id_message']: '',
++    '#default_value' => @$settings['viddler_info']['id_message'] ? $settings['viddler_info']['id_message'] : '',
+     '#description' => t('Text Info that will be under the Viddler Id field.'),
+-  );
++  ];
+ 
+-  $form['viddler_info']['title'] = array(
++  $form['viddler_info']['title'] = [
+     '#type' => 'textarea',
+     '#title' => t('Title Message'),
+-    '#default_value' => @$settings['viddler_info']['title'] ? $settings['viddler_info']['title']: '',
++    '#default_value' => @$settings['viddler_info']['title'] ? $settings['viddler_info']['title'] : '',
+     '#description' => t('Text Info that will be under the Title field.'),
+-  );
++  ];
+ 
+-  $form['viddler_info']['upload_message'] = array(
++  $form['viddler_info']['upload_message'] = [
+     '#type' => 'textarea',
+     '#title' => t('Upload Message'),
+-    '#default_value' => @$settings['viddler_info']['upload_message'] ? $settings['viddler_info']['upload_message']: '',
++    '#default_value' => @$settings['viddler_info']['upload_message'] ? $settings['viddler_info']['upload_message'] : '',
+     '#description' => t('Text Info that will be under the Upload Video field.'),
+-  );
++  ];
+ 
+   return $form;
+ }
+@@ -89,96 +92,96 @@ function viddler_field_instance_settings_form($field, $instance) {
+  * Implement hook_field_widget_info().
+  */
+ function viddler_field_widget_info() {
+-  return array(
+-    'viddler_widget' => array(
+-	    'label' => t('Video'),
+-	    'field types' => array('viddler_field'),
+-			'behaviors' => array(
++  return [
++    'viddler_widget' => [
++      'label' => t('Video'),
++      'field types' => ['viddler_field'],
++      'behaviors' => [
+         'default value' => FIELD_BEHAVIOR_NONE,
+-      ),
+-			'settings' => array(
+-        'dimension' => array(
+-					'full' => array(
+-						'width' => VIDDLER_DEFAULT_VIDEO_WIDTH,
+-						'height' => VIDDLER_DEFAULT_VIDEO_HEIGHT
+-					)
+-				),
+-      ),
+-	  ),
+-
+-	  'viddler_video_upload' => array(
++      ],
++      'settings' => [
++        'dimension' => [
++          'full' => [
++            'width' => VIDDLER_DEFAULT_VIDEO_WIDTH,
++            'height' => VIDDLER_DEFAULT_VIDEO_HEIGHT,
++          ],
++        ],
++      ],
++    ],
++
++    'viddler_video_upload' => [
+       'label' => t('Video Upload'),
+-      'field types' => array('viddler_field'),
+-      'settings' => array(
+-      'progress_indicator' => 'throbber',
+-      ),
+-     'behaviors' => array(
++      'field types' => ['viddler_field'],
++      'settings' => [
++        'progress_indicator' => 'throbber',
++      ],
++      'behaviors' => [
+         'default value' => FIELD_BEHAVIOR_NONE,
+-      ),
+-    ),
+-  );
++      ],
++    ],
++  ];
+ }
+ 
+ /**
+  * Implement hook_field_formatter_info().
+  */
+ function viddler_field_formatter_info() {
+-  return array(
+-    'viddler_default' => array(
++  return [
++    'viddler_default' => [
+       'label' => t('Video'),
+-      'field types' => array('viddler_field'),
+-    ),
+-	  'viddler_image' => array(
+-	    'label' => t('Image'),
+-	    'field types' => array('viddler_field'),
+-			'settings' => array('image_style' => '', 'image_link' => ''),
+-	  ),
+-  );
++      'field types' => ['viddler_field'],
++    ],
++    'viddler_image' => [
++      'label' => t('Image'),
++      'field types' => ['viddler_field'],
++      'settings' => ['image_style' => '', 'image_link' => ''],
++    ],
++  ];
+ }
+ 
+ /**
+  * Implement hook_field_widget().
+- * Todo: When saving default value in settings, it also enter here. so i need to consider default values. and how to display them in the settings page
++ * @todo: When saving default value in settings, it also enter here. So I need
++ * to consider default values. and how to display them in the settings page
+  */
+ function viddler_field_widget_form(&$form, &$form_state, $field, $instance, $langcode, $items, $delta, $element) {
+ 
+-	$value = isset($items[$delta]['value']) ? $items[$delta]['value'] : '';
+-	$title = isset($items[$delta]['video_title']) ? $items[$delta]['video_title'] : '';
+-	$video_fid = isset($items[$delta]['video_fid']) ? $items[$delta]['video_fid'] : '';
+-	$t_url = isset($items[$delta]['thumbnail_url']) ? $items[$delta]['thumbnail_url'] : '';
+-	$t_fid = isset($items[$delta]['thumbnail_fid']) ? $items[$delta]['thumbnail_fid'] : '';
+-	$code = isset($items[$delta]['embed_code']) ? $items[$delta]['embed_code'] : '';
+-
+-	switch ($instance['widget']['type']) {
+-	  case 'viddler_widget':
+-	    $element['value'] = $element + array(
+-        '#type' => 'textfield',
+-        '#default_value' => $value,
+-      );
+-
+-    	$element['thumbnail_url'] = array(
++  $value = isset($items[$delta]['value']) ? $items[$delta]['value'] : '';
++  $title = isset($items[$delta]['video_title']) ? $items[$delta]['video_title'] : '';
++  $video_fid = isset($items[$delta]['video_fid']) ? $items[$delta]['video_fid'] : '';
++  $t_url = isset($items[$delta]['thumbnail_url']) ? $items[$delta]['thumbnail_url'] : '';
++  $t_fid = isset($items[$delta]['thumbnail_fid']) ? $items[$delta]['thumbnail_fid'] : '';
++  $code = isset($items[$delta]['embed_code']) ? $items[$delta]['embed_code'] : '';
++
++  switch ($instance['widget']['type']) {
++    case 'viddler_widget':
++      $element['value'] = $element + [
++          '#type' => 'textfield',
++          '#default_value' => $value,
++        ];
++
++      $element['thumbnail_url'] = [
+         '#type' => 'value',
+         '#value' => $t_url,
+-      );
++      ];
+ 
+-    	$element['embed_code'] = array(
++      $element['embed_code'] = [
+         '#type' => 'value',
+         '#value' => $code,
+-      );
++      ];
+ 
+-    	$element['thumbnail_fid'] = array(
++      $element['thumbnail_fid'] = [
+         '#type' => 'value',
+         '#value' => $t_fid,
+-      );
+-    break;
++      ];
++      break;
+     case 'viddler_video_upload':
+       // This widget only works with 1 Video per node.  Don't set to Unlimited or anything above 1.
+-
+       // Changing the default value to a value so it show up
+       $value = isset($items[$delta]['value']) ? $items[$delta]['value'] : 'temp';
+ 
+       // Hide/Unhide based on if there is a Viddler ID already
+-      if($value != 'temp') {
++      if ($value != 'temp') {
+         $viddler_id_type = 'textfield';
+         $viddler_title_type = 'hidden';
+         $viddler_video_type = 'hidden';
+@@ -189,103 +192,137 @@ function viddler_field_widget_form(&$form, &$form_state, $field, $instance, $lan
+         $viddler_video_type = 'managed_file';
+       }
+ 
+-      $element['value'] = array(
++      $element['value'] = [
+         '#type' => $viddler_id_type,
+         '#title' => t('Viddler ID'),
+         '#default_value' => $value,
+         '#description' => t($instance['settings']['viddler_info']['id_message']),
+-      );
++      ];
+ 
+-      $element['video_title'] = array(
+-        '#type' =>  $viddler_title_type,
++      $element['video_title'] = [
++        '#type' => $viddler_title_type,
+         '#title' => t('Video Title'),
+         '#description' => t($instance['settings']['viddler_info']['title']),
+         '#default_value' => $title,
+-      );
++      ];
+ 
+-      $element['video_fid'] = array(
++      $element['video_fid'] = [
+         '#type' => $viddler_video_type,
+         '#title' => t('Upload Video'),
+-        '#upload_validators' => array(
+-                            'file_validate_extensions' => array("wmv mp4 ogg avi mov wmv flv ogv webm"),
+-        ),
++        '#upload_validators' => [
++          'file_validate_extensions' => ["wmv mp4 ogg avi mov wmv flv ogv webm"],
++        ],
+         '#upload_location' => 'public://' . $instance['settings']['file_directory'],
+         '#default_value' => $video_fid,
+         '#description' => t($instance['settings']['viddler_info']['upload_message']),
+-      );
++      ];
+ 
+-    	$element['thumbnail_url'] = array(
++      $element['thumbnail_url'] = [
+         '#type' => 'value',
+         '#value' => $t_url,
+-      );
++      ];
+ 
+-    	$element['embed_code'] = array(
++      $element['embed_code'] = [
+         '#type' => 'value',
+         '#value' => $code,
+-      );
++      ];
+ 
+-    	$element['thumbnail_fid'] = array(
++      $element['thumbnail_fid'] = [
+         '#type' => 'value',
+         '#value' => $t_fid,
+-      );
++      ];
+ 
+-    break;
++      break;
+   }
+ 
+-	return $element;
++  return $element;
+ }
+ 
+ /**
+  * Implements hook_field_formatter_view().
+  */
+ function viddler_field_formatter_view($object_type, $object, $field, $instance, $langcode, $items, $display) {
+-  $element = array();
+-
+-	$api = variable_get('viddler_apikey', '');
+-	if (!$api) return $element;
++  $element = [];
+ 
+-	foreach ($items as $delta => $item) {
+-		if (!$viddler_id = $item['value']) continue;
++  $api = variable_get('viddler_apikey', '');
++  if (!$api) {
++    return $element;
++  }
+ 
+-		switch($display['type']) {
+-			case 'viddler_image':
+-			  // Check if the formatter involves a link.
+-			  if(isset($display['settings']['image_link'])) {
++  foreach ($items as $delta => $item) {
++    switch ($display['type']) {
++      case 'viddler_image':
++        // Check if the formatter involves a link.
++        if (isset($display['settings']['image_link'])) {
+           if ($display['settings']['image_link'] == 'content') {
+             $uri = entity_uri($object_type, $object);
+           }
+         }
+ 
+-				$file = file_load($item['thumbnail_fid']);
++        $file = file_load($item['thumbnail_fid']);
+ 
+-				if ($file) {
+-					$item['uri'] = $file->uri;
+-					$item['alt'] = $object->title;
+-					$item['title'] = '';
+-					$item['attributes'] = array();
++        if ($file) {
++          $item['uri'] = $file->uri;
++          $item['alt'] = $object->title;
++          $item['title'] = '';
++          $item['attributes'] = [];
+ 
+-					$element[$delta] = array(
+-			      '#theme' => 'image_formatter',
+-			      '#item' => $item,
+-			      '#image_style' => $display['settings']['image_style'],
+-			      '#path' => isset($uri) ? $uri : '',
+-			    );
+-				}
++          $element[$delta] = [
++            '#theme' => 'image_formatter',
++            '#item' => $item,
++            '#image_style' => $display['settings']['image_style'],
++            '#path' => isset($uri) ? $uri : '',
++          ];
++        }
+ 
+-			break;
+-			default:
+-				$markup = $item['embed_code'];
+-				$element[$delta] = array('#markup' => $markup);
+-			break;
+-		}
++        break;
++      default:
++        $markup = _viddler_generate_markup($item);
++        $element[$delta] = ['#markup' => $markup];
+ 
+-	}
++        break;
++    }
+ 
++  }
+ 
+   return $element;
+ }
+ 
+ /**
++ * Generate markup for viddler video field.
++ *
++ * @param $item
++ *
++ * @return string
++ */
++function _viddler_generate_markup($item) {
++  $markup = '';
++  $viddler_id = $item['value'];
++
++  if (!empty($viddler_id)) {
++    $markup .= '<div class="viddler-wrapper">';
++    $markup .= '<div id="viddler-player-' . $viddler_id .'"></div>';
++    $markup .= '</div>';
++
++    drupal_add_js([
++      'viddler' => [
++        'viddlerId' => $viddler_id,
++      ]
++    ], 'setting');
++
++    drupal_add_js(drupal_get_path('module', 'viddler') . '/js/viddler-player.js', [
++      'type' => 'file'
++    ]);
++
++    drupal_add_css(drupal_get_path('module', 'viddler') . '/css/styles.css', [
++      'type' => 'file'
++    ]);
++  }
++
++  return $markup;
++}
++
++/**
+  * Implements hook_field_formatter_settings_form().
+  */
+ function viddler_field_formatter_settings_form($field, $instance, $view_mode, $form, &$form_state) {
+@@ -293,25 +330,26 @@ function viddler_field_formatter_settings_form($field, $instance, $view_mode, $f
+   $settings = $display['settings'];
+ 
+   $image_styles = image_style_options(FALSE);
+-  $element['image_style'] = array(
++  $element['image_style'] = [
+     '#title' => t('Image style'),
+     '#type' => 'select',
+     '#default_value' => $settings['image_style'],
+     '#empty_option' => t('None (original image)'),
+     '#options' => $image_styles,
+-  );
++  ];
+ 
+-  $link_types = array(
++  $link_types = [
+     'content' => t('Content'),
+     'file' => t('File'),
+-  );
+-  $element['image_link'] = array(
++  ];
++
++  $element['image_link'] = [
+     '#title' => t('Link video image to'),
+     '#type' => 'select',
+     '#default_value' => $settings['image_link'],
+     '#empty_option' => t('Nothing'),
+     '#options' => $link_types,
+-  );
++  ];
+ 
+   return $element;
+ }
+@@ -323,245 +361,246 @@ function viddler_field_formatter_settings_summary($field, $instance, $view_mode)
+   $display = $instance['display'][$view_mode];
+   $settings = $display['settings'];
+ 
+-  $summary = array();
+-
+-	if ($display['type'] == 'viddler_image') {
+-		$image_styles = image_style_options(FALSE);
+-	  // Unset possible 'No defined styles' option.
+-	  unset($image_styles['']);
+-	  // Styles could be lost because of enabled/disabled modules that defines
+-	  // their styles in code.
+-	  if (isset($image_styles[$settings['image_style']])) {
+-	    $summary[] = t('Image style: @style', array('@style' => $image_styles[$settings['image_style']]));
+-	  }
+-	  else {
+-	    $summary[] = t('Original image');
+-	  }
+-
+-	  $link_types = array(
++  $summary = [];
++
++  if ($display['type'] == 'viddler_image') {
++    $image_styles = image_style_options(FALSE);
++    // Unset possible 'No defined styles' option.
++    unset($image_styles['']);
++    // Styles could be lost because of enabled/disabled modules that defines
++    // their styles in code.
++    if (isset($image_styles[$settings['image_style']])) {
++      $summary[] = t('Image style: @style', ['@style' => $image_styles[$settings['image_style']]]);
++    }
++    else {
++      $summary[] = t('Original image');
++    }
++
++    $link_types = [
+       'content' => t('Linked to content'),
+-    );
++    ];
+ 
+-	  // Display this setting only if image is linked.
++    // Display this setting only if image is linked.
+     if (isset($link_types[$settings['image_link']])) {
+       $summary[] = $link_types[$settings['image_link']];
+     }
+ 
+-	}
++  }
+ 
+   return implode('<br />', $summary);
+ }
+ 
++/**
++ * Implements hook_field_insert().
++ */
+ function viddler_field_insert($entity_type, $entity, $field, $instance, $langcode, &$items) {
+   #1792 - Uncomment when back up
+-	_viddler_return_video_details($entity_type, $entity, $instance, $items);
++  _viddler_return_video_details($entity_type, $entity, $instance, $items);
+ }
+ 
++/**
++ * Implements hook_field_update().
++ */
+ function viddler_field_update($entity_type, $entity, $field, $instance, $langcode, &$items) {
+   list($id, $vid, $bundle) = entity_extract_ids($entity_type, $entity);
+ 
+-	// Build a display of the current FIDs.
+-  $current_viddler = array();
++  // Build a display of the current FIDs.
++  $current_viddler = [];
+   foreach ($items as $item) {
+     $current_viddler[] = $item['value'];
+   }
+ 
+-	// Create a bare-bones entity so that we can load its previous values.
+-  $original = entity_create_stub_entity($entity_type, array($id, $vid, $bundle));
+-  field_attach_load($entity_type, array($id => $original), FIELD_LOAD_CURRENT, array('field_id' => $field['id']));
++  // Create a bare-bones entity so that we can load its previous values.
++  $original = entity_create_stub_entity($entity_type, [$id, $vid, $bundle]);
++  field_attach_load($entity_type, [$id => $original], FIELD_LOAD_CURRENT, ['field_id' => $field['id']]);
+ 
+-	$original_items = array();
+-	if (!empty($original->{$field['field_name']}[$langcode])) {
+-		$original_items = $original->{$field['field_name']}[$langcode];
+-	}
++  $original_items = [];
++  if (!empty($original->{$field['field_name']}[$langcode])) {
++    $original_items = $original->{$field['field_name']}[$langcode];
++  }
+ 
+-	_viddler_return_video_details($entity_type, $entity, $instance, $items, $original_items, $entity_type, $entity);
++  _viddler_return_video_details($entity_type, $entity, $instance, $items, $original_items);
+ 
+-	// Compare the original field values with the ones that are being saved.
+-  $original_items = array();
++  // Compare the original field values with the ones that are being saved.
++  $original_items = [];
+   if (!empty($original->{$field['field_name']}[$langcode])) {
+     foreach ($original->{$field['field_name']}[$langcode] as $key => $original_item) {
+       $original_items[] = $original_item['value'];
+       if (isset($original_item['value']) && !in_array($original_item['value'], $current_viddler) && $original_item['thumbnail_fid']) {
+         // Decrement the file usage count by 1.
+         $file = file_load($original_item['thumbnail_fid']);
+-				if ($file) {
+-	        file_usage_delete($file, 'viddler', $entity_type, $id, 1);
+-					file_delete($file);
+-				}
++        if ($file) {
++          file_usage_delete($file, 'viddler', $entity_type, $id, 1);
++          file_delete($file);
++        }
+       }
+     }
+   }
+-
+ }
+ 
++/**
++ * Implements hook_field_delete().
++ */
+ function viddler_field_delete($entity_type, $entity, $field, $instance, $langcode, &$items) {
+-	list($id, $vid, $bundle) = entity_extract_ids($entity_type, $entity);
+-	foreach ($items as $delta => $item) {
++  list($id, $vid, $bundle) = entity_extract_ids($entity_type, $entity);
++  foreach ($items as $delta => $item) {
+     $file = file_load($item['thumbnail_fid']);
+-		if ($file) {
++    if ($file) {
+       file_usage_delete($file, 'viddler', $entity_type, $id, 1);
+-			file_delete($file);
+-		}
++      file_delete($file);
++    }
+   }
+ }
+ 
+ /**
+- * Get the embed code and save thumbnail locally so we can use it for image_styles
++ * Get the embed code and save thumbnail locally so we can use it for
++ * image_styles
+  */
+-function _viddler_return_video_details($entity_type, $entity, $instance, &$items, $original_items = array()) {
++function _viddler_return_video_details($entity_type, $entity, $instance, &$items, $original_items = []) {
++  $session_id = NULL;
++  $count = 0;
++  $api = NULL;
++  $original_items_lookup = [];
+ 
+   // If viddler id has text of 'temp' and there is a video_fid than we need to upload the video
+-  if($items && $items[0]['value'] == 'temp' && $items[0]['video_fid']) {
+-
++  if ($items && $items[0]['value'] == 'temp' && $items[0]['video_fid']) {
+     $video = viddler_upload_to_viddler($items[0]);
+-
+     // Get the Viddler id
+     $items[0]['value'] = $video['video']['id'];
+-
+   }
+ 
+-  $count = 0;
+ 
+   list($id, $vid, $bundle) = entity_extract_ids($entity_type, $entity);
+ 
+   // Looping through twice.  If it fails on one account than use the second account
+-  while($count < 2 && !isset($passed)) {
++  while ($count < 2 && !isset($passed)) {
+     $count++;
+ 
+-    if($count == 1) {
+-	    $api = variable_get('viddler_apikey', '');
++    if ($count == 1) {
++      $api = variable_get('viddler_apikey', '');
+     }
+-
+-    if($count == 2 && variable_get('viddler_apikey2', '')) {
+-	    $api = variable_get('viddler_apikey2', '');
++    elseif ($count == 2 && variable_get('viddler_apikey2', '')) {
++      $api = variable_get('viddler_apikey2', '');
+     }
+ 
+-  	if (!$api) {
+-  		drupal_set_message(t('Viddler API key is missing.'), 'error');
+-  		$items = array();
+-  		return;
+-  	}
++    if (!isset($api)) {
++      drupal_set_message(t('Viddler API key is missing.'), 'error');
++      $items = [];
+ 
+-  	$original_items_lookup = array();
+-  	if ($original_items) {
+-  		foreach ($original_items as $key => $original_item) {
+-  			$original_items_lookup[$key] = $original_item['value'];
+-      }
+-  	}
+-
+-  	//module_load_include('module', 'media_internet', 'media_internet');
++      return;
++    }
+ 
+-  	$viddler_connect = new Viddler_V2($api);
+-  	$media = new MediaInternetFileHandler('');
++    if ($original_items) {
++      foreach ($original_items as $key => $original_item) {
++        $original_items_lookup[$key] = $original_item['value'];
++      }
++    }
+ 
+-	  if($count == 1) {
+-  	  $session_id = viddler_get_sesssion_id($viddler_connect, variable_get('viddler_user', ''), variable_get('viddler_password', ''));
+-	  }
+-	  if($count == 2) {
+-	    $session_id = viddler_get_sesssion_id($viddler_connect, variable_get('viddler_user2', ''), variable_get('viddler_password2', ''));
+-	  }
++    $viddler_connect = new Viddler_V2($api);
++    $media = new MediaInternetFileHandler('');
+ 
+-  	$force_update = variable_get('viddler_force_update', false);
++    if ($count == 1) {
++      $session_id = viddler_get_session_id($viddler_connect, variable_get('viddler_user', ''), variable_get('viddler_password', ''));
++    }
++    elseif ($count == 2) {
++      $session_id = viddler_get_session_id($viddler_connect, variable_get('viddler_user2', ''), variable_get('viddler_password2', ''));
++    }
+ 
+-  	foreach($items as &$item) {
++    $force_update = variable_get('viddler_force_update', FALSE);
+ 
+-  		if (!$viddler_id = $item['value']) continue;
++    foreach ($items as &$item) {
++      if (!$viddler_id = $item['value']) {
++        continue;
++      }
+ 
+-  		if ($item['value'] == 'x') {
+-  			$item['embed_code'] = '';
+-  			$item['thumbnail_url'] = '';
+-  			$item['thumbnail_fid'] = 0;
+-  			continue;
+-  		}
++      if ($item['value'] == 'x') {
++        $item['embed_code'] = '';
++        $item['thumbnail_url'] = '';
++        $item['thumbnail_fid'] = 0;
++        continue;
++      }
+ 
+-      $args = array('video_id' => $viddler_id);
++      $args = ['video_id' => $viddler_id];
+       if ($session_id) {
+         $args['sessionid'] = $session_id;
+       }
+ 
+-  		$video = $viddler_connect->viddler_videos_getDetails($args);
+-
+-  		if (isset($video['error'])) {
+-  			$item['embed_code'] = '';
+-  			$item['thumbnail_url'] = '';
+-  			$item['thumbnail_fid'] = 0;
+-  			continue;
+-  		}
+-
+-  		// Get the embed code
+-  		if ($force_update || !$item['embed_code'] || !in_array($item['value'], $original_items_lookup)) {
+-  		  $width 	= $instance['settings']['dimension']['full']['width'];
+-  		  $args['width'] = $width;
+-  			$height = $instance['settings']['dimension']['full']['height'];
+-  			// Not using the height because I will let Viddler set it to keep the ratio the same
+-  			//$args['height'] = $height;
+-  			$autoplay = false;
+-  			$args['wmode'] = 'transparent';
++      $video = $viddler_connect->viddler_videos_getDetails($args);
++
++      if (isset($video['error'])) {
++        $item['embed_code'] = '';
++        $item['thumbnail_url'] = '';
++        $item['thumbnail_fid'] = 0;
++        continue;
++      }
++
++      // Get the embed code
++      if ($force_update || !$item['embed_code'] || !in_array($item['value'], $original_items_lookup)) {
++        $width = $instance['settings']['dimension']['full']['width'];
++        $args['width'] = $width;
++        $height = $instance['settings']['dimension']['full']['height'];
++        $args['height'] = $height;
++        $args['wmode'] = 'transparent';
++
+         // Updating to the latest recommended embed code (iframe). Other types
+         // can be found: http://developers.viddler.com/#viddler-videos-getembedcodetypes
+         $args['embed_code_type'] = 5;
+ 
+-  			// we have more flexibility with widht and height when using getEmbedCode()
+-  			$code = $viddler_connect->viddler_videos_getEmbedCode($args);
++        // We have more flexibility with widht and height when using getEmbedCode().
++        $code = $viddler_connect->viddler_videos_getEmbedCode($args);
+ 
+-  			// forbidden
++        // Forbidden.
+         if (isset($code['error']['code'])) {
+           if ($session_id) {
+-            $secret_args = array('sessionid' => $session_id, 'view_use_secret' => '1', 'video_id' => $viddler_id);
+-            $enable_secret = $viddler_connect->viddler_videos_setDetails($args);
+-
++            $viddler_connect->viddler_videos_setDetails($args);
+             $code = $viddler_connect->viddler_videos_getEmbedCode($args);
++
+             if (isset($code['error']['code'])) {
+               $error_message[] = 'Unable to get the embed code. Please see the viddler error details: <br/>Error: 02-' . $code['error']['code'] . ': ' . $code['error']['details'];
+               _viddler_log_error_watchdog($video, $code, $id);
+             }
+           }
+-  		    else {
+-  		      $error_message[] = 'Unable to get the embed code. Please see the viddler error details: <br/>Error: 02-' . $code['error']['code'] . ': ' . $code['error']['details'];
++          else {
++            $error_message[] = 'Unable to get the embed code. Please see the viddler error details: <br/>Error: 02-' . $code['error']['code'] . ': ' . $code['error']['details'];
+             _viddler_log_error_watchdog($video, $code, $id);
+-  		    }
++          }
+         }
+         else {
+           $passed = TRUE;
+         }
+ 
+-  			$embed_code = '';
+-  			if (isset($code['video']['embed_code'])) {
+-  		    $embed_code = $code['video']['embed_code'];
+-  		  }
+-
+-  			$item['embed_code'] = $embed_code;
+-  		}
+-
+-  		// Get the thumbnail
+-  		if ($force_update || !$item['thumbnail_url'] || !in_array($item['value'], $original_items_lookup)) {
+-  			$thumbnail_path = '';
+-  			if ($video && isset($video['video']['thumbnail_url']) && $video['video']['thumbnail_url']) {
+-  				$thumbnail_path = $video['video']['thumbnail_url'];
+-
+-  				$file_obj = file_uri_to_object($thumbnail_path);
+-  				$media->preSave($file_obj);
+-  				$media->postSave($file_obj);
++        $embed_code = '';
++        if (isset($code['video']['embed_code'])) {
++          $embed_code = $code['video']['embed_code'];
++        }
+ 
+-  				$item['thumbnail_url'] = $thumbnail_path;
+-  				$item['thumbnail_fid'] = $file_obj->fid;
++        $item['embed_code'] = $embed_code;
++      }
+ 
+-  				file_usage_add($file_obj, 'viddler', $entity_type, $id);
+-  			}
+-  		}
++      // Get the thumbnail.
++      if ($force_update || !$item['thumbnail_url'] || !in_array($item['value'], $original_items_lookup)) {
++        if ($video && isset($video['video']['thumbnail_url']) && $video['video']['thumbnail_url']) {
++          $thumbnail_path = $video['video']['thumbnail_url'];
+ 
+-  	}
++          $file_obj = file_uri_to_object($thumbnail_path);
++          $media->preSave($file_obj);
++          $media->postSave($file_obj);
+ 
+-	}
++          $item['thumbnail_url'] = $thumbnail_path;
++          $item['thumbnail_fid'] = $file_obj->fid;
+ 
+-	// Only display the error if it wasn't embeded
+-	if(isset($error_message) && !isset($passed)) {
+-	  foreach($error_message as $message) {
+-	    drupal_set_message($message, 'error');
+-	  }
+-	}
++          file_usage_add($file_obj, 'viddler', $entity_type, $id);
++        }
++      }
++    }
++  }
+ 
++  // Only display the error if it wasn't embeded.
++  if (isset($error_message) && !isset($passed)) {
++    foreach ($error_message as $message) {
++      drupal_set_message($message, 'error');
++    }
++  }
+ }
+ 
+ /**
+@@ -570,35 +609,31 @@ function _viddler_return_video_details($entity_type, $entity, $instance, &$items
+  * @param $item
+  *  array of the Viddler Id field items
+  *
+- * @return $video
++ * @return array|mixed $video
+  *  video object that contains the viddler id of the video
+  */
+ function viddler_upload_to_viddler($item) {
+-
+   $fid = intval($item['video_fid']);
+   $file = file_load($fid);
+ 
+-  if($fid != 0) {
+-    // ***
+-    // Create viddler object
+-    // Authenticate as you
++  if ($fid !== 0) {
++    // Create viddler objectAuthenticate as you
+     // Set session id
+-    // ***/
+     $v = new Viddler_V2(variable_get('viddler_apikey', ''));
+-    $session_id = viddler_get_sesssion_id($v, variable_get('viddler_user', ''), variable_get('viddler_password', ''));
+-
+-    if($session_id) {
+-      // ***
+-      // Call prepareUpload
+-      // Get endpoint
+-      // Get token
+-      // ***/
+-      $response = $v->viddler_videos_prepareUpload(array('sessionid' => $session_id));
++    $session_id = viddler_get_session_id($v, variable_get('viddler_user', ''), variable_get('viddler_password', ''));
++
++    if ($session_id) {
++      /**
++       * Call prepareUpload
++       * Get endpoint
++       * Get token
++       */
++      $response = $v->viddler_videos_prepareUpload(['sessionid' => $session_id]);
+       $endpoint = (isset($response['upload']['endpoint'])) ? $response['upload']['endpoint'] : NULL;
+-      $token    = (isset($response['upload']['token'])) ? $response['upload']['token'] : NULL;
++      $token = (isset($response['upload']['token'])) ? $response['upload']['token'] : NULL;
+ 
+       // If no title supplied than use the filename
+-      if($item['video_title']) {
++      if ($item['video_title']) {
+         $title = $item['video_title'];
+       }
+       else {
+@@ -606,25 +641,22 @@ function viddler_upload_to_viddler($item) {
+       }
+ 
+       if (!empty($endpoint) || !empty($token)) {
+-        $query          =   array(
+-          'uploadtoken' =>  $token,
+-          'title'       =>  $title,
+-          'file'        =>  '@' .  drupal_realpath($file->uri),
+-        );
+-
+-
+-        // ***
+-        // Start up curl
+-        //
+-        // Example below tells curl to:
+-        // return the result rather than print to screen
+-        // follow any redirects
+-        // return the headers
+-        // return the body
+-        // have no timeout
+-        // use POST method
+-        // set POSTFIELDS
+-        // ***
++        $query = [
++          'uploadtoken' => $token,
++          'title' => $title,
++          'file' => '@' . drupal_realpath($file->uri),
++        ];
++
++        /**
++         * Example below tells curl to:
++         * return the result rather than print to screen
++         * follow any redirects
++         * return the headers
++         * return the body
++         * have no timeout
++         * use POST method
++         * set POSTFIELDS
++         */
+         $ch = curl_init();
+         curl_setopt($ch, CURLOPT_URL, $endpoint);
+         curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
+@@ -634,31 +666,18 @@ function viddler_upload_to_viddler($item) {
+         curl_setopt($ch, CURLOPT_TIMEOUT, 0);
+         curl_setopt($ch, CURLOPT_POST, TRUE);
+         curl_setopt($ch, CURLOPT_POSTFIELDS, $query);
+-        $response     = curl_exec($ch);
+-        $info         = curl_getinfo($ch);
+-        $header_size  = $info['header_size'];
+-        $header       = substr($response, 0, $header_size);
+-        $video        = unserialize(substr($response, $header_size));
++        $response = curl_exec($ch);
++        $info = curl_getinfo($ch);
++        $header_size = $info['header_size'];
++        $video = unserialize(substr($response, $header_size));
+         curl_close($ch);
+ 
+-        /*
+-        // For checking Status
+-
+-        $v->format = 'json';
+-        $res = $v->viddler_videos_uploadProgress(array(
+-          'sessionid' =>  $session_id,
+-          'token'     =>  urldecode($token)
+-        ));
+-
+-        dsm($res);
+-        */
+-
+         return $video;
+-
+       }
+     }
+   }
+ 
++  return [];
+ }
+ 
+ /**
+@@ -671,23 +690,32 @@ function viddler_upload_to_viddler($item) {
+  * @param $viddler_password
+  *  the password associated with the Viddler Account
+  *
+- * @return $session_id
++ * @return bool $session_id
+  *  the Viddler session id
+  */
+-function viddler_get_sesssion_id($viddler_connect, $viddler_user, $viddler_password) {
+-
++function viddler_get_session_id($viddler_connect, $viddler_user, $viddler_password) {
+   $session_id = FALSE;
+ 
+-	$args = array('user' => $viddler_user, 'password' => urlencode($viddler_password));
+-	$session = $viddler_connect->viddler_users_auth($args);
+-	if (isset($session['auth']['sessionid'])) {
+-	  $session_id = $session['auth']['sessionid'];
+-	}
++  $args = [
++    'user' => $viddler_user,
++    'password' => urlencode($viddler_password),
++  ];
+ 
+-	return $session_id;
++  $session = $viddler_connect->viddler_users_auth($args);
++  if (isset($session['auth']['sessionid'])) {
++    $session_id = $session['auth']['sessionid'];
++  }
+ 
++  return $session_id;
+ }
+ 
++/**
++ * Viddler watchdog logger helped function.
++ *
++ * @param $video
++ * @param $code
++ * @param $id
++ */
+ function _viddler_log_error_watchdog($video, $code, $id) {
+   $watchdog_err = t('Viddler ID') . ': ' . $video['video']['id']
+     . t('Error') . ': ' . $code['error']['code']
+@@ -695,10 +723,12 @@ function _viddler_log_error_watchdog($video, $code, $id) {
+     . '<br/>' . t('Details') . ': ' . $code['error']['details'];
+ 
+   $watchdog_err .= '<br/><br/>' . t('Video Details below: ');
+-  foreach($video['video'] as $key => $val) {
+-    if (is_array($val)) $val = serialize($val);
++  foreach ($video['video'] as $key => $val) {
++    if (is_array($val)) {
++      $val = serialize($val);
++    }
+     $watchdog_err .= '<br/>' . $key . ': ' . $val;
+   }
+ 
+-  watchdog('viddler', $watchdog_err, $variables = array(), WATCHDOG_ERROR, l('node/'.$id,'node/'.$id));
++  watchdog('viddler', $watchdog_err, [], WATCHDOG_ERROR, l('node/' . $id, 'node/' . $id));
+ }
+diff --git a/docroot/sites/default/modules/viddler/viddler.info b/docroot/sites/default/modules/viddler/viddler.info
+index d982685..149a3a7 100644
+--- a/docroot/sites/default/modules/viddler/viddler.info
++++ b/docroot/sites/default/modules/viddler/viddler.info
+@@ -3,4 +3,4 @@ description = "Viddler field"
+ core = 7.x
+ package = Viddler
+ dependencies[] = media_internet
+-files[] = library/phpviddler.php
+\ No newline at end of file
++files[] = library/phpviddler.php
+diff --git a/docroot/sites/default/modules/viddler/viddler.install b/docroot/sites/default/modules/viddler/viddler.install
+index bb60c19..6a60698 100644
+--- a/docroot/sites/default/modules/viddler/viddler.install
++++ b/docroot/sites/default/modules/viddler/viddler.install
+@@ -1,64 +1,66 @@
+ <?php
++
+ /**
+  * Implements hook_field_schema().
+  */
+ function viddler_field_schema($field) {
+-  $columns = array(
+-    'value' => array(
++  $columns = [
++    'value' => [
+       'type' => 'varchar',
+       'length' => 255,
+       'not null' => FALSE,
+-    ),
+-    'embed_code' => array(
++    ],
++    'embed_code' => [
+       'type' => 'text',
+       'length' => 255,
+       'not null' => FALSE,
+-    ),
+-    'thumbnail_url' => array(
++    ],
++    'thumbnail_url' => [
+       'type' => 'varchar',
+       'length' => 255,
+       'not null' => FALSE,
+-    ),
+-    'thumbnail_fid' => array(
++    ],
++    'thumbnail_fid' => [
+       'type' => 'int',
+       'length' => 11,
+       'not null' => FALSE,
+-    ),
+-    'video_fid' => array(
++    ],
++    'video_fid' => [
++      'type' => 'varchar',
++      'length' => 255,
++      'not null' => FALSE,
++    ],
++    'video_title' => [
+       'type' => 'varchar',
+       'length' => 255,
+       'not null' => FALSE,
+-    ),
+-     'video_title' => array(
+-        'type' => 'varchar',
+-        'length' => 255,
+-        'not null' => FALSE,
+-      ),
+-  );
+-  
+-  return array('columns' => $columns);
++    ],
++  ];
++
++  return ['columns' => $columns];
+ }
+ 
++/**
++ * Add new viddler fields: title and fid.
++ */
+ function viddler_update_7002(&$sandbox) {
+-  
+-  
+-  $spec = array(
++  $spec = [
+     'type' => 'varchar',
+     'description' => "Video fid",
+     'length' => 255,
+     'not null' => FALSE,
+-  ); 
+-  
++  ];
++
+   db_add_field('field_data_field_viddler_id', 'field_viddler_id_video_fid', $spec);
+   db_add_field('field_revision_field_viddler_id ', 'field_viddler_id_video_fid', $spec);
+-  
+-  $spec = array(
++
++  $spec = [
+     'type' => 'varchar',
+     'description' => "Video Title",
+     'length' => 255,
+     'not null' => FALSE,
+-  ); 
+-  
++  ];
++
+   db_add_field('field_data_field_viddler_id', 'field_viddler_id_video_title', $spec);
+   db_add_field('field_revision_field_viddler_id', 'field_viddler_id_video_title', $spec);
+-}
+\ No newline at end of file
++}
+diff --git a/docroot/sites/default/modules/viddler/viddler.module b/docroot/sites/default/modules/viddler/viddler.module
+index a250b38..9c0ca4f 100644
+--- a/docroot/sites/default/modules/viddler/viddler.module
++++ b/docroot/sites/default/modules/viddler/viddler.module
+@@ -1,4 +1,5 @@
+ <?php
++
+ module_load_include('inc', 'viddler', 'viddler.field');
+ 
+ define('VIDDLER_DEFAULT_VIDEO_WIDTH', 430);
+@@ -8,83 +9,89 @@ define('VIDDLER_DEFAULT_PREVIEW_HEIGHT', 232);
+ define('VIDDLER_DEFAULT_THUMBNAIL_WIDTH', 114);
+ define('VIDDLER_DEFAULT_THUMBNAIL_HEIGHT', 86);
+ 
+-
++/**
++ * Implements hook_menu().
++ */
+ function viddler_menu() {
+-  $items['admin/config/media/viddler'] = array(
++  $items['admin/config/media/viddler'] = [
+     'title' => 'Viddler',
+     'description' => 'Configure Viddler.',
+     'page callback' => 'drupal_get_form',
+-    'page arguments' => array('viddler_admin_settings_form'),
+-    'access arguments' => array('administer site configuration'),
++    'page arguments' => ['viddler_admin_settings_form'],
++    'access arguments' => ['administer site configuration'],
+     'type' => MENU_NORMAL_ITEM,
+-  );
++  ];
+ 
+   return $items;
+ }
+ 
++/**
++ * Form constructor for administer module settings page.
++ */
+ function viddler_admin_settings_form() {
+-  $form = array();
+-  $form['general'] = array(
++  $form = [];
++
++  $form['general'] = [
+     '#type' => 'fieldset',
+     '#title' => t('General Settings'),
+     '#description' => t('These features will effect all viddler content types.'),
+     '#collapsible' => TRUE,
+     '#collapsed' => FALSE,
+-  );
+-  $form['general']['viddler_apikey'] = array(
++  ];
++  $form['general']['viddler_apikey'] = [
+     '#type' => 'textfield',
+     '#title' => t('Viddler Api Key'),
+     '#default_value' => variable_get('viddler_apikey', ''),
+     '#required' => FALSE,
+     '#description' => t('The viddler api key is the only way we can post recorded or uploaded videos to Viddler.'),
+-  );
++  ];
+ 
+-	$form['general']['viddler_user'] = array(
++  $form['general']['viddler_user'] = [
+     '#type' => 'textfield',
+     '#title' => t('Viddler User'),
+     '#default_value' => variable_get('viddler_user', ''),
+     '#required' => FALSE,
+     '#description' => t('The viddler user for private videos.'),
+-  );
++  ];
+ 
+-  $form['general']['viddler_password'] = array(
++  $form['general']['viddler_password'] = [
+     '#type' => 'password',
+     '#title' => t('Viddler Password'),
+     '#default_value' => variable_get('viddler_password', ''),
+     '#required' => FALSE,
+     '#description' => t('The viddler password for private videos.'),
+-  );
++  ];
+ 
+-  $form['general']['viddler_apikey2'] = array(
+-     '#type' => 'textfield',
+-     '#title' => t('Viddler Api Key - Second Account'),
+-     '#default_value' => variable_get('viddler_apikey2', ''),
+-     '#required' => FALSE,
+-     '#description' => t('The viddler api key for a second account is the only way we can post recorded or uploaded videos to Viddler.'),
+-   );
++  $form['general']['viddler_apikey2'] = [
++    '#type' => 'textfield',
++    '#title' => t('Viddler Api Key - Second Account'),
++    '#default_value' => variable_get('viddler_apikey2', ''),
++    '#required' => FALSE,
++    '#description' => t('The viddler api key for a second account is the only way we can post recorded or uploaded videos to Viddler.'),
++  ];
+ 
+- 	$form['general']['viddler_user2'] = array(
+-     '#type' => 'textfield',
+-     '#title' => t('Viddler User - Second Account'),
+-     '#default_value' => variable_get('viddler_user2', ''),
+-     '#required' => FALSE,
+-     '#description' => t('The secound account viddler user for private videos.'),
+-   );
++  $form['general']['viddler_user2'] = [
++    '#type' => 'textfield',
++    '#title' => t('Viddler User - Second Account'),
++    '#default_value' => variable_get('viddler_user2', ''),
++    '#required' => FALSE,
++    '#description' => t('The secound account viddler user for private videos.'),
++  ];
+ 
+-   $form['general']['viddler_password2'] = array(
+-     '#type' => 'password',
+-     '#title' => t('Viddler Password - Second Account'),
+-     '#default_value' => variable_get('viddler_password2', ''),
+-     '#required' => FALSE,
+-     '#description' => t('The second account viddler password for private videos.'),
+-   );
++  $form['general']['viddler_password2'] = [
++    '#type' => 'password',
++    '#title' => t('Viddler Password - Second Account'),
++    '#default_value' => variable_get('viddler_password2', ''),
++    '#required' => FALSE,
++    '#description' => t('The second account viddler password for private videos.'),
++  ];
+ 
+-	$form['viddler_force_update'] = array(
++  $form['viddler_force_update'] = [
+     '#type' => 'checkbox',
+     '#title' => t('Force update'),
+-    '#default_value' => variable_get('viddler_force_update', false),
++    '#default_value' => variable_get('viddler_force_update', FALSE),
+     '#description' => t('The module only updates the embed code on node update if it is different from the previous entry. On debugging, it might be useful to force it on every update.'),
+-  );
++  ];
+ 
+   return system_settings_form($form);
+ }
+@@ -93,8 +100,11 @@ function viddler_admin_settings_form() {
+  * Implements hook_page_alter().
+  */
+ function viddler_page_alter(&$page) {
+-  // Add Viddler javascript.  Need to add it to every file because there may be
++  // Add Viddler JS files.  Need to add it to every file because there may be
+   // videos embeded on the page.
+-  drupal_add_js('https://static.cdn-ec.viddler.com/js/vapi.js', array('type' => 'external', 'scope' => 'footer', 'weight' => -20));
+-  drupal_add_js(drupal_get_path('module', 'viddler') . '/js/viddler.js', array('scope' => 'footer'));
++  drupal_add_js('//static.cdn-ec.viddler.com/js/arpeggio/v3/build/main-built.js', [
++    'type' => 'external',
++  ]);
++
++  drupal_add_js(drupal_get_path('module', 'viddler') . '/js/viddler.js', ['scope' => 'footer']);
+ }
