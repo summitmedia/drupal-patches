@@ -1,0 +1,136 @@
+diff --git a/dfp.module b/dfp.module
+index e3c71f2..6c4aaef 100644
+--- a/dfp.module
++++ b/dfp.module
+@@ -661,38 +661,43 @@ function _dfp_get_ad_category($term, $clean_string = FALSE) {
+  */
+ function _dfp_js_global_settings() {
+   // Initialize the google varibales and inject user-defined javascript.
+-  $js = 'var googletag = googletag || {};' . "\n";
++  $attr = array(
++    'src' => "//" . DFP_GOOGLE_TAG_SERVICES_URL,
++  );
++  if (variable_get('dfp_async_rendering') == 1) {
++    $attr['async'] = 'async';
++  }
++  $data = array(
++    '#tag' => 'script',
++    '#value' => '',
++    '#weight' => -12,
++    '#attributes' => $attr,
++  );
++  drupal_add_html_head($data, 'dfp_main');
++
++  $js = '<script type="text/javascript">var googletag = googletag || {};' . "\n";
+   $js .= 'googletag.cmd = googletag.cmd || [];';
+   $js .= variable_get('dfp_injected_js', '') . "\n";
+ 
+   // Add a place to store the slot name variable
+-  $js .= 'googletag.slots = googletag.slots || {};';
++  $js .= 'googletag.slots = googletag.slots || {};</script>' . "\n";
+ 
+-  $options = array(
+-    'type' => 'inline',
+-    'group' => JS_LIBRARY,
+-    'every_page' => TRUE,
+-    'weight' => -10,
+-    'force header' => TRUE,
++  $data = array(
++    '#type' => 'markup',
++    '#markup' => $js,
++    '#weight' => -11,
+   );
+-  drupal_add_js($js, $options);
+-
+-  // Include a script tag for the Google Tag Services.
+-  // @todo: One day this should include an async=true attribute. See #1140356.
+-  //        However, there is a good chance this might break <= IE8.
+-  $options['type'] = 'external';
+-  $options['weight']++;
+-  drupal_add_js(($GLOBALS['is_https'] ? "https://" : "http://") . DFP_GOOGLE_TAG_SERVICES_URL, $options);
++  drupal_add_html_head($data, 'dfp_first');
+ 
+   // Add global settings with a heavy weight so that they appear after all the
+   // defineSlot() calls otherwise IE8 and Opera fail to display ads properly.
+-  $js = 'googletag.cmd.push(function() {' . "\n";
++  $js = '<script type="text/javascript">googletag.cmd.push(function() {' . "\n";
+   $js .= variable_get('dfp_injected_js3', '') . "\n";
+   if (variable_get('dfp_async_rendering', 1)) {
+     $js .= '  googletag.pubads().enableAsyncRendering();' . "\n";
+   }
+   else {
+-     $js .= '  googletag.pubads().enableSyncRendering();' . "\n";
++    $js .= '  googletag.pubads().enableSyncRendering();' . "\n";
+   }
+   if (variable_get('dfp_single_request', 1)) {
+     $js .= '  googletag.pubads().enableSingleRequest();' . "\n";
+@@ -718,19 +723,21 @@ function _dfp_js_global_settings() {
+       $js .= '  googletag.pubads().setTargeting(' . $target['target'] . ', ' . $target['value'] . ');' . "\n";
+     }
+   }
+-
+-  $js .= '});' . "\n";
+   $js .= variable_get('dfp_injected_js2', '') . "\n";
+   $js .= 'googletag.enableServices();';
++  $js .= '});</script>' . "\n";
+ 
+-  $options = array(
+-    'type' => 'inline',
+-    'group' => JS_DEFAULT,
+-    'every_page' => TRUE,
+-    'weight' => 10,
+-    'force header' => TRUE,
++  $data = array(
++    '#type' => 'markup',
++    '#markup' => $js,
++    '#weight' => -9,
+   );
+-  drupal_add_js($js, $options);
++  drupal_add_html_head($data, 'dfp_second');
++  drupal_add_js('window.onload = function() {googletag.pubads().refresh();};', array(
++    'type' => 'inline',
++    'scope' => 'footer',
++    'weight' => 99,
++  ));
+ }
+ 
+ /**
+@@ -745,7 +752,7 @@ function _dfp_js_slot_definition($tag) {
+   }
+ 
+   // Add the js needed to define this adSlot to <head>.
+-  $js = '';
++  $js = '<script type="text/javascript">googletag.cmd.push(function() {' . "\n";
+   // Start by defining breakpoints for this ad.
+   if (!empty($tag->breakpoints)) {
+     $breakpoints = $tag->breakpoints;
+@@ -788,15 +795,14 @@ function _dfp_js_slot_definition($tag) {
+   if (!empty($tag->breakpoints)) {
+     $js .= '  .defineSizeMapping(mapping)' . "\n";
+   }
+-  $js = rtrim($js, "\n") . ';';
++  $js .= '});</script>' . "\n";
+ 
+-  $options = array(
+-    'type' => 'inline',
+-    'group' => JS_LIBRARY,
+-    'weight' => 0,
+-    'force header' => TRUE,
++  $data = array(
++    '#type' => 'markup',
++    '#markup' => $js,
++    '#weight' => -10,
+   );
+-  drupal_add_js($js, $options);
++  drupal_add_html_head($data, "{dfp_$tag->machinename}");
+ }
+ 
+ /**
+@@ -941,6 +947,7 @@ function template_preprocess_dfp_tag(&$variables) {
+   $tag->size = dfp_format_size($tag->size);
+   $tag->slug = dfp_format_slug($tag->slug);
+ 
++
+   // Create the attributes for the wrapper div and placeholder div.
+   $variables['placeholder_attributes'] = array(
+     'id' => $tag->placeholder_id,
