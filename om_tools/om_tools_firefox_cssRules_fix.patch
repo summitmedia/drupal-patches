@@ -1,0 +1,33 @@
+diff --git a/contrib/mediaqueries.js b/contrib/mediaqueries.js
+index e6c8a16..5996607 100755
+--- a/contrib/mediaqueries.js
++++ b/contrib/mediaqueries.js
+@@ -11,14 +11,21 @@
+         style.setAttribute('type', 'text/css');
+     	style.setAttribute('media', str);
+         style = $(style).prependTo('head');
+-        styleS = document.styleSheets[0];
+-        if (styleS.cssRules || styleS.rules) {
+-            if (styleS.insertRule) {
+-                styleS.insertRule('.testMediaQuery' + date + ' {display:none !important;}', styleS.cssRules.length);
+-            } else if (styleS.addRule) {
+-                styleS.addRule('.testMediaQuery' + date, 'display:none');
++        styleS = document.styleSheets;
++        $.each(styleS, function(i, item) {
++        try {
++          if (item.cssRules || item.rules) {
++            if (item.insertRule) {
++              item.insertRule('.testMediaQuery' + date + ' {display:none !important;}', item.cssRules.length);
++              } else if (styleS.addRule) {
++                item.addRule('.testMediaQuery' + date, 'display:none');
++              }
+             }
+-        }
++          return false;
++        } catch (e) {
++          return true;
++          }
++        });
+         var ret = div.css('display') === 'none';
+         div.remove();
+         style.remove();
