@@ -1,0 +1,102 @@
+diff --git a/expire.module b/expire.module
+index 6eb8021..10e1081 100644
+--- a/expire.module
++++ b/expire.module
+@@ -358,3 +358,97 @@ function _expire_load_single_entity($entity_type, $entity_id) {
+ function expire_print_r($data) {
+   return str_replace('    ', '&nbsp;&nbsp;&nbsp;&nbsp;', nl2br(htmlentities(print_r($data, TRUE))));
+ }
++
++/**
++ * Implements hook_form_alter().
++ */
++function expire_form_alter(&$form, &$form_state, $form_id) {
++  if (
++    $form_id == 'block_admin_configure' ||
++    $form_id == 'block_add_block_form'
++  ) {
++    $block_id = $form["delta"]["#value"];
++    $form["visibility"]["purge_cache"] = array(
++      '#type' => 'fieldset',
++      '#title' => t('Purge cache on listed pages'),
++      '#collapsible' => TRUE,
++      '#collapsed' => TRUE,
++      '#group' => 'visibility',
++      '#weight' => 40,
++      'purged_pages' => array(
++        '#type' => 'textarea',
++        '#title' => t('Purged path'),
++        '#default_value' => variable_get("expire_block_{$block_id}") ? variable_get("expire_block_{$block_id}") : '',
++        '#description' => 'Specify pages by using their paths. Enter one path per line. The \'*\' character is a wildcard. Example paths are <em class="placeholder">blog</em> for the blog page and <em class="placeholder">blog/*</em> for every personal blog. <em class="placeholder">&lt;front&gt;</em> is the front page.',
++      ),
++    );
++    $form['#validate'][] = 'expire_form_block_admin_validation_handler';
++    $form['#submit'][]  = 'expire_form_block_admin_submit_handler';
++  }
++}
++
++/**
++ * Form validation handler for expire_form_alter().
++ *
++ * @see expire_form_alter()
++ */
++function expire_form_block_admin_validation_handler(&$form, &$form_state) {
++  if (!empty($form_state['input']['purged_pages'])) {
++    $user_input = trim($form_state['input']['purged_pages']);
++    $purged_pages = preg_split( '/\r\n|\r|\n/', $user_input);
++    foreach ($purged_pages as $key => $path) {
++      $normal_path = drupal_get_normal_path($path);
++      // Replace a wildcard * to % to check directly against menu_router table.
++      $normal_path = str_replace('*', '%', $normal_path);
++      if (!_expire_check_if_valid_path($normal_path)){
++        form_set_error('visibility][purge_cache', t('Then next purged path is not valid: !path', array('!path' => $path)));
++      }
++    }
++  }
++}
++
++/**
++ * Form submission handler for expire_form_alter().
++ *
++ * @see expire_form_alter()
++ */
++function expire_form_block_admin_submit_handler(&$form, &$form_state) {
++  if (!empty($form_state['input']['purged_pages'])) {
++    $block_id = $form_state['values']['delta'];
++    $user_input = trim($form_state['input']['purged_pages']);
++    variable_set("expire_block_{$block_id}", $user_input);
++    $purged_pages = preg_split( '/\r\n|\r|\n/', $user_input);
++    $internal_path = array();
++    foreach ($purged_pages as $key => $path) {
++      $internal_path[] = drupal_get_normal_path($path);
++    }
++    ExpireAPI::executeExpiration($internal_path);
++  }
++}
++
++/**
++ * Helper function to check if path is valid.
++ *
++ * Modification of drupal_valid_path(). Because we don't want to check
++ * path access and allow external URLs.
++ *
++ */
++function _expire_check_if_valid_path($path) {
++  if ($path == '<front>') {
++    $item = array('access' => TRUE);
++  }
++  elseif (preg_match('/\/\%/', $path)) {
++    // Path is dynamic (ie 'user/%'), so check directly against menu_router table.
++    if ($item = db_query("SELECT * FROM {menu_router} where path = :path", array(':path' => $path))->fetchAssoc()) {
++      $item['link_path']  = $item['path'];
++      $item['link_title'] = $item['title'];
++      $item['external']   = FALSE;
++      $item['options'] = '';
++      _menu_link_translate($item);
++    }
++  }
++  else {
++    $item = menu_get_item($path);
++  }
++  return $item;
++}
