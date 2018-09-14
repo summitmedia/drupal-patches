@@ -1,0 +1,405 @@
+diff --git a/expire.admin.inc b/expire.admin.inc
+index 8de24db..51cd022 100644
+--- a/expire.admin.inc
++++ b/expire.admin.inc
+@@ -192,6 +192,69 @@ function expire_admin_settings_form() {
+     '#default_value' => variable_get('expire_node_custom_pages'),
+   );
+ 
++  // BLOCK SETTINGS.
++  $form['tabs']['block'] = array(
++    '#type' => 'fieldset',
++    '#title' => t('Block expiration'),
++    '#group' => 'tabs',
++    '#weight' => 1,
++  );
++
++  $form['tabs']['block']['actions'] = array(
++    '#type' => 'fieldset',
++    '#title' => t('Block actions'),
++  );
++
++  $form['tabs']['block']['actions']['expire_block_actions'] = array(
++    '#type' => 'checkboxes',
++    '#description' => t('Page cache for block will be flushed after selected actions. Blocks structure change will purge cache for all blocks'),
++    '#options' => array(
++      EXPIRE_BLOCK_INSERT => t('Block insert'),
++      EXPIRE_BLOCK_UPDATE => t('Block update'),
++      EXPIRE_BLOCK_DELETE => t('Block delete'),
++      BLOCKS_STRUCTURE_CHANGE => t('Blocks structure change'),
++    ),
++    '#default_value' => variable_get('expire_block_actions', array()),
++  );
++
++  $form['tabs']['block']['expire'] = array(
++    '#type' => 'fieldset',
++    '#title' => t('What URLs should be expired when block action is triggered?'),
++  );
++
++  $form['tabs']['block']['expire']['expire_block_front_page'] = array(
++    '#type' => 'checkbox',
++    '#title' => t('Front page'),
++    '#description' => t('Expire url of the site front page'),
++    '#default_value' => variable_get('expire_block_front_page', EXPIRE_BLOCK_FRONT_PAGE),
++  );
++
++  $form['tabs']['block']['expire']['expire_merge_blocks_settings'] = array(
++    '#type' => 'checkbox',
++    '#title' => t('Merge blocks individual settings'),
++    '#description' => t('Merge blocks custom settings'),
++    '#default_value' => variable_get('expire_merge_blocks_settings', EXPIRE_MERGE_BLOCKS_SETTINGS),
++  );
++
++  $form['tabs']['block']['expire']['expire_block_custom'] = array(
++    '#type' => 'checkbox',
++    '#title' => t('Custom pages'),
++    '#description' => t('Expire user-defined custom urls.'),
++    '#default_value' => variable_get('expire_block_custom', EXPIRE_BLOCK_CUSTOM),
++  );
++
++  $form['tabs']['block']['expire']['expire_block_custom_pages'] = array(
++    '#type' => 'textarea',
++    '#title' => t('Enter custom URLs'),
++    '#description' => 'Specify pages by using their paths. Enter one path per line. The \'*\' character is a wildcard. Example paths are <em class="placeholder">blog</em> for the blog page and <em class="placeholder">blog/*</em> for every personal blog. <em class="placeholder">&lt;front&gt;</em> is the front page.',
++    '#states' => array(
++      'visible' => array(
++        ':input[name="expire_block_custom"]' => array('checked' => TRUE),
++      ),
++    ),
++    '#default_value' => variable_get('expire_block_custom_pages'),
++  );
++
+ 
+   // TAXONOMY TERM SETTINGS.
+   if (module_exists('taxonomy')) {
+diff --git a/expire.info b/expire.info
+index 364fe1a..5338cc8 100644
+--- a/expire.info
++++ b/expire.info
+@@ -11,6 +11,7 @@ files[] = includes/expire.domain.inc
+ files[] = includes/expire.interface.inc
+ files[] = includes/expire.menu_link.inc
+ files[] = includes/expire.node.inc
++files[] = includes/expire.block.inc
+ files[] = includes/expire.taxonomy_term.inc
+ files[] = includes/expire.user.inc
+ files[] = includes/expire.votingapi.inc
+diff --git a/expire.module b/expire.module
+index 6eb8021..cdeb39d 100644
+--- a/expire.module
++++ b/expire.module
+@@ -26,6 +26,12 @@ define('EXPIRE_NODE_INSERT', 1);
+ define('EXPIRE_NODE_UPDATE', 2);
+ define('EXPIRE_NODE_DELETE', 3);
+ 
++// Block actions.
++define('EXPIRE_BLOCK_INSERT', 1);
++define('EXPIRE_BLOCK_UPDATE', 2);
++define('EXPIRE_BLOCK_DELETE', 3);
++define('BLOCKS_STRUCTURE_CHANGE', 4);
++
+ // Taxonomy term actions.
+ define('EXPIRE_TAXONOMY_TERM_INSERT', 1);
+ define('EXPIRE_TAXONOMY_TERM_UPDATE', 2);
+@@ -69,6 +75,9 @@ define('EXPIRE_NODE_TERM_PAGES'                 , FALSE);
+ define('EXPIRE_NODE_REFERENCE_PAGES'            , FALSE);
+ define('EXPIRE_NODE_REFERENCE_FC_PAGES'         , FALSE);
+ define('EXPIRE_NODE_CUSTOM'                     , FALSE);
++define('EXPIRE_BLOCK_FRONT_PAGE'                , FALSE);
++define('EXPIRE_MERGE_BLOCKS_SETTINGS'           , FALSE);
++define('EXPIRE_BLOCK_CUSTOM'                    , FALSE);
+ define('EXPIRE_TAXONOMY_TERM_FRONT_PAGE'        , FALSE);
+ define('EXPIRE_TAXONOMY_TERM_TAXONOMY_TERM_PAGE', TRUE);
+ define('EXPIRE_TAXONOMY_TERM_TERM_PAGES'        , FALSE);
+@@ -358,3 +367,192 @@ function _expire_load_single_entity($entity_type, $entity_id) {
+ function expire_print_r($data) {
+   return str_replace('    ', '&nbsp;&nbsp;&nbsp;&nbsp;', nl2br(htmlentities(print_r($data, TRUE))));
+ }
++
++/**
++ * Implements hook_form_alter().
++ */
++function expire_form_alter(&$form, &$form_state, $form_id) {
++  $status = _check_blocks_execution_status($form_id);
++  if (!$status) {
++    return;
++  }
++  $needed_form_id = array(
++    'block_admin_configure',
++    'block_add_block_form',
++    'block_admin_display_form',
++    'block_custom_block_delete',
++  );
++  if (in_array($form_id, $needed_form_id)) {
++    if (
++      variable_get('expire_merge_blocks_settings', EXPIRE_MERGE_BLOCKS_SETTINGS) &&
++      $form_id !== 'block_admin_display_form'
++    ) {
++      $block_id = $form["delta"]["#value"];
++      $form["visibility"]["purge_cache"] = array(
++        '#type' => 'fieldset',
++        '#title' => t('Block expiration'),
++        '#collapsible' => TRUE,
++        '#collapsed' => TRUE,
++        '#group' => 'visibility',
++        '#weight' => 40,
++        'purged_pages' => array(
++          '#type' => 'textarea',
++          '#title' => t('WHAT URLS SHOULD BE EXPIRED WHEN BLOCK ACTION IS TRIGGERED?'),
++          '#default_value' => variable_get("expire_block_{$block_id}") ? variable_get("expire_block_{$block_id}") : '',
++          '#description' => 'Specify pages by using their paths. Enter one path per line. The \'*\' character is a wildcard. Example paths are <em class="placeholder">blog</em> for the blog page and <em class="placeholder">blog/*</em> for every personal blog. <em class="placeholder">&lt;front&gt;</em> is the front page.',
++        ),
++      );
++      $form['#validate'][] = 'expire_form_block_admin_validation_handler';
++    }
++    $form['#submit'][]  = 'expire_form_block_admin_submit_handler';
++  }
++}
++
++/**
++ * Form validation handler for expire_form_alter().
++ *
++ * @see expire_form_alter()
++ */
++function expire_form_block_admin_validation_handler(&$form, &$form_state) {
++  if (!empty($form_state['input']['purged_pages'])) {
++    $user_input = trim($form_state['input']['purged_pages']);
++    $purged_pages = preg_split( '/\r\n|\r|\n/', $user_input);
++    foreach ($purged_pages as $key => $path) {
++      $normal_path = drupal_get_normal_path($path);
++      // Replace a wildcard * to % to check directly against menu_router table.
++      $normal_path = str_replace('*', '%', $normal_path);
++      if (!_expire_check_if_valid_path($normal_path)){
++        form_set_error('visibility][purge_cache', t('Then next purged path is not valid: !path', array('!path' => $path)));
++      }
++    }
++  }
++}
++
++/**
++ * Form submission handler for expire_form_alter().
++ *
++ * @see expire_form_alter()
++ */
++function expire_form_block_admin_submit_handler(&$form, &$form_state) {
++  $form_id = $form["#form_id"];
++  $block_id = $operation = $purged_pages = '';
++  switch ($form_id) {
++    case 'block_add_block_form':
++      $operation = EXPIRE_BLOCK_INSERT;
++      $block_id = $form_state["values"]["delta"];
++      break;
++
++    case 'block_admin_configure':
++      $operation = EXPIRE_BLOCK_UPDATE;
++      $block_id = $form_state["values"]["delta"];
++      break;
++
++    case 'block_custom_block_delete':
++      $operation = EXPIRE_BLOCK_DELETE;
++      $block_id = $form_state["values"]["bid"];
++      break;
++
++    case 'block_admin_display_form':
++      $operation = BLOCKS_STRUCTURE_CHANGE;
++      $block_id = NULL;
++      break;
++
++    default:
++      break;
++  }
++  if (variable_get('expire_block_custom', EXPIRE_BLOCK_CUSTOM) && !empty($form_state['input']['purged_pages'])) {
++    $purged_pages = $form_state['input']['purged_pages'];
++    $user_input = trim($purged_pages);
++    variable_set("expire_block_{$block_id}", $user_input);
++  }
++  expire_execute_expiration('block', $block_id , $operation);
++}
++
++/**
++ * Helper function to check if path is valid.
++ *
++ * Modification of drupal_valid_path(). Because we don't want to check
++ * path access and allow external URLs.
++ *
++ * @param $path
++ *
++ * @return array|bool
++ */
++function _expire_check_if_valid_path($path) {
++  if ($path == '<front>') {
++    $item = array('access' => TRUE);
++  }
++  elseif (preg_match('/\/\%/', $path)) {
++    // Path is dynamic (ie 'user/%'), so check directly against menu_router table.
++    if ($item = db_query("SELECT * FROM {menu_router} where path = :path", array(':path' => $path))->fetchAssoc()) {
++      $item['link_path']  = $item['path'];
++      $item['link_title'] = $item['title'];
++      $item['external']   = FALSE;
++      $item['options'] = '';
++      _menu_link_translate($item);
++    }
++  }
++  else {
++    $item = menu_get_item($path);
++  }
++  return $item;
++}
++
++/**
++ * Helper function to split string into array by regex expression.
++ *
++ * @param $string
++ *
++ * @return array[]|false|string[]
++ */
++function _expire_array_split($string) {
++  $string = trim($string);
++  return preg_split( '/\r\n|\r|\n/', $string);
++}
++
++/**
++ * Helper function to determine if we need to execute purge operations
++ * for blocks;
++ *
++ * @param $form_id
++ *
++ * @return bool|null
++ */
++function _check_blocks_execution_status($form_id) {
++  $status = variable_get('expire_status', EXPIRE_STATUS_DISABLED);
++  if (!$status) {
++    return FALSE;
++  }
++
++  $enabled_actions = variable_get('expire_block_actions', array());
++  $enabled_actions = array_filter($enabled_actions);
++
++  if (empty($enabled_actions)) {
++    return FALSE;
++  }
++
++  $operation = "";
++  switch ($form_id) {
++    case 'block_add_block_form':
++      $operation = EXPIRE_BLOCK_INSERT;
++      break;
++
++    case 'block_admin_configure':
++      $operation = EXPIRE_BLOCK_UPDATE;
++      break;
++
++    case 'block_custom_block_delete':
++      $operation = EXPIRE_BLOCK_DELETE;
++      break;
++
++    case 'block_admin_display_form':
++      $operation = BLOCKS_STRUCTURE_CHANGE;
++      break;
++
++    default:
++      break;
++  }
++
++  $status = in_array($operation, $enabled_actions);
++  return $status;
++}
+\ No newline at end of file
+diff --git a/includes/expire.block.inc b/includes/expire.block.inc
+new file mode 100644
+index 0000000..a7387a8
+--- /dev/null
++++ b/includes/expire.block.inc
+@@ -0,0 +1,92 @@
++<?php
++
++/**
++ * @file
++ * Provides class that expires blocks.
++ */
++
++class ExpireBlock implements ExpireInterface {
++
++  /**
++   * Executes expiration actions for blocks.
++   *
++   * @param $block_id
++   *   String with block id.
++   *
++   * @param $action
++   *   Action that has been executed.
++   *
++   * @param $skip_action_check
++   *   Shows whether should we check executed action or just expire node.
++   */
++  function expire($block_id, $action, $skip_action_check = FALSE) {
++    global $theme_key;
++
++    $enabled_actions = variable_get('expire_block_actions', array());
++    $enabled_actions = array_filter($enabled_actions);
++
++    // Stop further expiration if executed action is not selected by admin.
++    if (!in_array($action, $enabled_actions) && !$skip_action_check) {
++      return;
++    }
++
++    $expire_urls = array();
++
++    // Expire front page.
++    $expire_front_page = variable_get('expire_block_front_page', EXPIRE_BLOCK_FRONT_PAGE);
++    if ($expire_front_page) {
++      $expire_urls = ExpireAPI::getFrontPageUrls();
++    }
++
++    // Expire node page.
++    $merge_blocks_settigns = variable_get('expire_merge_blocks_settings', EXPIRE_MERGE_BLOCKS_SETTINGS);
++    if ($merge_blocks_settigns) {
++      $purged_pages = "";
++      switch ($action) {
++        case EXPIRE_BLOCK_INSERT:
++        case EXPIRE_BLOCK_UPDATE:
++          $purged_pages = variable_get("expire_block_{$block_id}");
++          break;
++
++        case EXPIRE_BLOCK_DELETE:
++          $purged_pages = variable_get("expire_block_{$block_id}");
++          variable_del("expire_block_{$block_id}");
++          break;
++
++        case BLOCKS_STRUCTURE_CHANGE:
++          drupal_theme_initialize();
++
++          if (!isset($theme)) {
++            // If theme is not specifically set, rehash for the current theme.
++            $theme = $theme_key;
++          }
++          // Fetch and sort blocks.
++          $blocks = block_admin_display_prepare_blocks($theme);
++          $purged_pages = '';
++          foreach ($blocks as $key => $block) {
++            $block_id = $block['delta'];
++            $block_purged_path = variable_get("expire_block_{$block_id}", '');
++            if (!empty($block_purged_path)) {
++              $purged_pages .= PHP_EOL . $block_purged_path;
++            }
++          }
++          break;
++
++        default:
++          break;
++      }
++      $custom_settings = _expire_array_split($purged_pages);
++      $expire_urls = array_merge($expire_urls, $custom_settings);
++    }
++
++    // Expire custom pages.
++    $expire_custom = variable_get('expire_block_custom', EXPIRE_BLOCK_CUSTOM);
++    if ($expire_custom) {
++      $expire_custom_pages = variable_get('expire_block_custom_pages');
++      $expire_custom_pages =  _expire_array_split($expire_custom_pages);
++      $expire_urls = array_merge($expire_urls, $expire_custom_pages);
++    }
++    // Flush page cache for expired urls.
++    ExpireAPI::executeExpiration($expire_urls);
++  }
++}
