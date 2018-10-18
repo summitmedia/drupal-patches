@@ -740,7 +740,7 @@ new file mode 100644
 index 0000000..f811114
 --- /dev/null
 +++ b/includes/expire.block.inc
-@@ -0,0 +1,95 @@
+@@ -0,0 +1,99 @@
 +<?php
 +
 +/**
@@ -833,7 +833,11 @@ index 0000000..f811114
 +      $expire_urls = array_merge($expire_urls, $expire_custom_pages);
 +    }
 +    // Flush page cache for expired urls.
++    // Only submit the paths if they really contain something.
 +    ExpireAPI::executeExpiration($expire_urls);
++    if (count($expire_urls) && module_enable(['acquia_purge'])) {
++      _acquia_purge_service()->addPaths($expire_urls);
++    }
 +  }
 +}
 diff --git a/includes/expire.taxonomy_term.inc b/includes/expire.taxonomy_term.inc
